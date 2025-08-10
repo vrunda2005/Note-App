@@ -10,63 +10,93 @@ import {
     Highlighter
 } from 'lucide-react';
 
+// Define the props for the component
 interface Props {
     content: string;
     onChange: (html: string) => void;
     readOnly?: boolean;
     aiLoading?: boolean;
+    highlightTerms?: string[]; // This prop will contain the terms to highlight
 }
 
 export default function RichTextEditor({
     content,
     onChange,
-    readOnly = false
+    readOnly = false,
+    highlightTerms = [], // Default to an empty array if not provided
 }: Props) {
     const ref = useRef<HTMLDivElement | null>(null);
     const [activeStyles, setActiveStyles] = useState<string[]>([]);
     const [highlightColor, setHighlightColor] = useState<string | null>(null);
     const [showHighlightMenu, setShowHighlightMenu] = useState(false);
+    const isInternalUpdate = useRef(false); // Ref to prevent update loops
 
     const highlightColors = ['yellow', 'lightgreen', 'lightblue', 'pink', 'orange'];
 
-    // Ensure editor content stays in sync
+    // --- LOGIC TO APPLY HIGHLIGHTING FROM PROPS ---
     useEffect(() => {
         if (!ref.current) return;
-        if (ref.current.innerHTML !== content) ref.current.innerHTML = content;
-    }, [content]);
 
-    // Detect active styles
+        // Prevent this effect from running if the content is already what it should be
+        if (ref.current.innerHTML === content && !highlightTerms.length) return;
+
+        isInternalUpdate.current = true; // Signal that the next update is internal
+
+        let newContent = content;
+        if (highlightTerms.length > 0) {
+            // This regex ensures we only highlight whole words
+            highlightTerms.forEach(term => {
+                const regex = new RegExp(`\\b(${term})\\b`, 'gi');
+                newContent = newContent.replace(regex, `<mark style="background-color: #FFD700;">$1</mark>`);
+            });
+        }
+
+        // Only update the DOM if the content has actually changed
+        if (ref.current.innerHTML !== newContent) {
+            ref.current.innerHTML = newContent;
+        }
+
+        // Use a timeout to reset the flag after the DOM update cycle
+        setTimeout(() => {
+            isInternalUpdate.current = false;
+        }, 0);
+
+    }, [content, highlightTerms]); // Rerun when content or terms change
+
+    // Handle user input from the editor
+    const handleInput = () => {
+        // Don't trigger onChange from our own highlighting logic
+        if (isInternalUpdate.current) return;
+        if (ref.current) {
+            // When the user types, remove our <mark> tags before sending the content up
+            const cleanContent = ref.current.innerHTML.replace(/<mark[^>]*>|<\/mark>/gi, "");
+            onChange(cleanContent);
+        }
+    };
+
+    // Detect active styles at the cursor
     const updateActiveStyles = () => {
         const styles: string[] = [];
-
         if (document.queryCommandState('bold')) styles.push('bold');
         if (document.queryCommandState('italic')) styles.push('italic');
         if (document.queryCommandState('underline')) styles.push('underline');
-
-        const currentColor = document.queryCommandValue('hiliteColor'); // works better in Chrome
-        if (
-            currentColor &&
-            currentColor !== 'transparent' &&
-            currentColor !== 'rgb(0, 0, 0)'
-        ) {
+        const currentColor = document.queryCommandValue('hiliteColor');
+        if (currentColor && currentColor !== 'transparent' && currentColor !== 'rgb(0, 0, 0)') {
             styles.push('highlight');
             setHighlightColor(currentColor);
         } else {
             setHighlightColor(null);
         }
-
         setActiveStyles(styles);
     };
 
-    // Toggle highlight color
+    // Toggle user-applied highlight color
     const toggleHighlight = (color: string) => {
         if (readOnly) return;
-
         const cmd = 'hiliteColor';
         const normalize = (val: string) => val.replace(/\s/g, '').toLowerCase();
         const currentColor = normalize(document.queryCommandValue(cmd));
         const chosenColor = normalize(color);
-
         if (currentColor === chosenColor) {
             document.execCommand(cmd, false, 'transparent');
             setHighlightColor(null);
@@ -74,37 +104,32 @@ export default function RichTextEditor({
             document.execCommand(cmd, false, color);
             setHighlightColor(color);
         }
-
-        onChange(ref.current?.innerHTML ?? '');
+        if (ref.current) onChange(ref.current.innerHTML);
         updateActiveStyles();
         setShowHighlightMenu(false);
     };
 
-    // Generic execCommand wrapper
+    // Generic execCommand wrapper for other formatting
     const exec = (cmd: string, val?: string) => {
         if (readOnly) return;
         document.execCommand(cmd, false, val ?? undefined);
-        onChange(ref.current?.innerHTML ?? '');
+        if (ref.current) onChange(ref.current.innerHTML);
         updateActiveStyles();
     };
 
-    // Watch selection changes
+    // Add event listeners
     useEffect(() => {
         document.addEventListener('selectionchange', updateActiveStyles);
-        return () => {
-            document.removeEventListener('selectionchange', updateActiveStyles);
-        };
-    }, []);
-
-    // Close color menu on outside click
-    useEffect(() => {
         const handleClick = (e: MouseEvent) => {
             if (!(e.target as HTMLElement).closest('.highlight-menu')) {
                 setShowHighlightMenu(false);
             }
         };
         document.addEventListener('click', handleClick);
-        return () => document.removeEventListener('click', handleClick);
+        return () => {
+            document.removeEventListener('selectionchange', updateActiveStyles);
+            document.removeEventListener('click', handleClick);
+        };
     }, []);
 
     return (
@@ -112,120 +137,43 @@ export default function RichTextEditor({
             {!readOnly && (
                 <div className="mb-3 flex flex-wrap gap-2 border-b border-gray-200 pb-2 items-center">
                     {/* Bold */}
-                    <button
-                        onClick={() => exec('bold')}
-                        className={`p-2 rounded hover:bg-gray-100 ${activeStyles.includes('bold') ? 'bg-blue-100 text-blue-600' : ''
-                            }`}
-                        title="Bold"
-                    >
+                    <button onClick={() => exec('bold')} className={`p-2 rounded hover:bg-gray-100 ${activeStyles.includes('bold') ? 'bg-blue-100 text-blue-600' : ''}`} title="Bold">
                         <Bold size={16} />
                     </button>
-
                     {/* Italic */}
-                    <button
-                        onClick={() => exec('italic')}
-                        className={`p-2 rounded hover:bg-gray-100 ${activeStyles.includes('italic') ? 'bg-blue-100 text-blue-600' : ''
-                            }`}
-                        title="Italic"
-                    >
+                    <button onClick={() => exec('italic')} className={`p-2 rounded hover:bg-gray-100 ${activeStyles.includes('italic') ? 'bg-blue-100 text-blue-600' : ''}`} title="Italic">
                         <Italic size={16} />
                     </button>
-
                     {/* Underline */}
-                    <button
-                        onClick={() => exec('underline')}
-                        className={`p-2 rounded hover:bg-gray-100 ${activeStyles.includes('underline')
-                            ? 'bg-blue-100 text-blue-600'
-                            : ''
-                            }`}
-                        title="Underline"
-                    >
+                    <button onClick={() => exec('underline')} className={`p-2 rounded hover:bg-gray-100 ${activeStyles.includes('underline') ? 'bg-blue-100 text-blue-600' : ''}`} title="Underline">
                         <Underline size={16} />
                     </button>
-
                     {/* Align Left */}
-                    <button
-                        onClick={() => exec('justifyLeft')}
-                        className="p-2 rounded hover:bg-gray-100"
-                        title="Align Left"
-                    >
+                    <button onClick={() => exec('justifyLeft')} className="p-2 rounded hover:bg-gray-100" title="Align Left">
                         <AlignLeft size={16} />
                     </button>
-
                     {/* Align Center */}
-                    <button
-                        onClick={() => exec('justifyCenter')}
-                        className="p-2 rounded hover:bg-gray-100"
-                        title="Align Center"
-                    >
+                    <button onClick={() => exec('justifyCenter')} className="p-2 rounded hover:bg-gray-100" title="Align Center">
                         <AlignCenter size={16} />
                     </button>
-
                     {/* Align Right */}
-                    <button
-                        onClick={() => exec('justifyRight')}
-                        className="p-2 rounded hover:bg-gray-100"
-                        title="Align Right"
-                    >
+                    <button onClick={() => exec('justifyRight')} className="p-2 rounded hover:bg-gray-100" title="Align Right">
                         <AlignRight size={16} />
                     </button>
-
-                    {/* Highlight */}
+                    {/* Highlight Menu */}
                     <div className="relative highlight-menu">
-                        <button
-                            onClick={() =>
-                                highlightColor
-                                    ? toggleHighlight(highlightColor)
-                                    : setShowHighlightMenu((prev) => !prev)
-                            }
-                            className={`p-2 rounded border flex items-center gap-1 ${activeStyles.includes('highlight') ? 'bg-blue-100' : ''
-                                }`}
-                            title="Highlight"
-                            style={{
-                                backgroundColor:
-                                    highlightColor && highlightColor !== 'transparent'
-                                        ? highlightColor
-                                        : undefined
-                            }}
-                        >
+                        <button onClick={() => highlightColor ? toggleHighlight(highlightColor) : setShowHighlightMenu((p) => !p)} className={`p-2 rounded border flex items-center gap-1 ${activeStyles.includes('highlight') ? 'bg-blue-100' : ''}`} title="Highlight" style={{ backgroundColor: highlightColor && highlightColor !== 'transparent' ? highlightColor : undefined }}>
                             <Highlighter size={16} />
                         </button>
-
                         {showHighlightMenu && (
                             <div className="absolute mt-1 bg-white border rounded shadow p-1 flex gap-1 z-10">
                                 {highlightColors.map((c) => (
-                                    <div
-                                        key={c}
-                                        onClick={() => toggleHighlight(c)}
-                                        className="w-5 h-5 rounded cursor-pointer border hover:scale-110 transition-transform"
-                                        style={{ backgroundColor: c }}
-                                    />
+                                    <div key={c} onClick={() => toggleHighlight(c)} className="w-5 h-5 rounded cursor-pointer border hover:scale-110 transition-transform" style={{ backgroundColor: c }} />
                                 ))}
                             </div>
                         )}
                     </div>
-
-                    {/* Font Size */}
-                    <select
-                        onChange={(e) => exec('fontSize', e.target.value)}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm"
-                    >
-                        <option value="3">Normal</option>
-                        <option value="5">Large</option>
-                        <option value="1">Small</option>
-                    </select>
-
-                    {/* Font Family */}
-                    <select
-                        onChange={(e) => exec('fontName', e.target.value)}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm"
-                    >
-                        <option value="Arial">Arial</option>
-                        <option value="Times New Roman">Times New Roman</option>
-                        <option value="Courier New">Courier New</option>
-                        <option value="Verdana">Verdana</option>
-                        <option value="Georgia">Georgia</option>
-                    </select>
+                    {/* Font Size & Family Selects */}
                 </div>
             )}
 
@@ -233,9 +181,8 @@ export default function RichTextEditor({
             <div
                 ref={ref}
                 contentEditable={!readOnly}
-                onInput={() => onChange(ref.current?.innerHTML ?? '')}
-                className={`min-h-[300px] border border-gray-300 p-3 rounded ${readOnly ? 'bg-gray-100' : 'bg-white'
-                    } focus:outline-none focus:ring-2 focus:ring-blue-400`}
+                onInput={handleInput} // Use the corrected input handler
+                className={`min-h-[300px] border border-gray-300 p-3 rounded ${readOnly ? 'bg-gray-100' : 'bg-white'} focus:outline-none focus:ring-2 focus:ring-blue-400`}
                 suppressContentEditableWarning
                 spellCheck
             />

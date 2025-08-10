@@ -16,6 +16,7 @@ interface Props {
     onGenerateSummary: () => void;
     onGlossaryHighlight: () => void;
     glossaryTerms: string[]; // Accept the new prop
+    // highlightTerms: string[];
 }
 
 export default function NoteEditor({
@@ -32,6 +33,7 @@ export default function NoteEditor({
     onGenerateSummary,
     onGlossaryHighlight,
     glossaryTerms, // Destructure the new prop
+    // highlightTerms,
 }: Props) {
     const [newTag, setNewTag] = useState('');
 
