@@ -21,6 +21,8 @@ const Home: React.FC = () => {
     togglePin,
     encryptNote,
     decryptNote,
+
+
   } = useNotes();
 
   const { aiLoading, generateSummary, suggestTags, checkGrammar, highlightGlossary } = useAI();

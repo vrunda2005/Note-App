@@ -1,10 +1,11 @@
 import { Plus, Lock } from 'lucide-react';
 import { type Note } from '@/types';
-
 interface Props {
     selectedNote: Note | null;
     onCreateNewNote: () => void;
     onProtectNote: () => void;
+    lockIcon: React.ReactNode; // <-- ADD THIS LINE
+
 }
 
 export default function AppHeader({ selectedNote, onCreateNewNote, onProtectNote }: Props) {
