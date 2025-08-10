@@ -27,7 +27,8 @@ export async function getSummary(text: string): Promise<string> {
 export async function getTags(text: string): Promise<string[]> {
   if (!text) return [];
   const tagsString = await callMyBackend('getTags', text);
-  return tagsString ? tagsString.split(',').map(tag => tag.trim()) : [];
+  return tagsString ? tagsString.split(',').map((tag: string) => tag.trim()) : [];
+  
 }
 
 export async function grammarCheck(text: string): Promise<string> {
@@ -38,7 +39,7 @@ export async function grammarCheck(text: string): Promise<string> {
 export async function glossaryHighlight(text: string): Promise<string[]> {
   if (!text) return [];
   const termsString = await callMyBackend('glossaryHighlight', text);
-  return termsString ? termsString.split(',').map(term => term.trim()) : [];
+  return termsString ? termsString.split(',').map((term: string) => term.trim()) : [];
 }
 
 export async function rewriteNote(text: string, tone: 'concise' | 'formal'): Promise<string> {
