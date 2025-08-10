@@ -1,9 +1,12 @@
 import { openDB, IDBPDatabase } from 'idb';
-import { type Note } from '@/types'; // Assuming you have a Note type definition
+import { type Note,type Drawing } from '@/types'; // Assuming you have a Note type definition
 
 const DB_NAME = 'notes-app-db';
 const STORE_NAME = 'notes';
-const DB_VERSION = 1;
+const STORE_DRAWINGS = 'drawings';
+
+const DB_VERSION = 2;
+
 
 /**
  * Initializes and opens a connection to the IndexedDB database.
@@ -21,6 +24,11 @@ async function getDB(): Promise<IDBPDatabase> {
       // The 'id' property is set as the keyPath, meaning it's the unique identifier for each record.
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+
+       // Create 'drawings' store if it doesn't exist
+      if (!db.objectStoreNames.contains(STORE_DRAWINGS)) {
+        db.createObjectStore(STORE_DRAWINGS, { keyPath: 'id' });
       }
     }
   });
@@ -53,4 +61,27 @@ export async function getAllNotes(): Promise<Note[]> {
 export async function deleteNote(id: string): Promise<void> {
   const db = await getDB();
   await db.delete(STORE_NAME, id);
+}
+
+
+
+// Drawings API - save, get, delete drawings
+export async function saveDrawing(drawing: Drawing): Promise<void> {
+  const db = await getDB();
+  await db.put(STORE_DRAWINGS, drawing);
+}
+
+export async function getDrawing(id: string): Promise<Drawing | undefined> {
+  const db = await getDB();
+  return db.get(STORE_DRAWINGS, id);
+}
+
+export async function getAllDrawings(): Promise<Drawing[]> {
+  const db = await getDB();
+  return db.getAll(STORE_DRAWINGS);
+}
+
+export async function deleteDrawing(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete(STORE_DRAWINGS, id);
 }

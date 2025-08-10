@@ -1,6 +1,6 @@
 import React from 'react';
 import { type Note } from '@/types';
-import { Plus, Search, Pin, PinOff, Trash2 } from 'lucide-react';
+import { Plus, Search, Pin, PinOff, Trash2, Clock, FileText } from 'lucide-react';
 
 interface Props {
     notes: Note[];
@@ -36,64 +36,108 @@ const NotesSidebar: React.FC<Props> = ({
         return b.lastModified - a.lastModified;
     });
 
+    const formatDate = (timestamp: number) => {
+        const now = new Date();
+        const noteDate = new Date(timestamp);
+        const diffInHours = (now.getTime() - noteDate.getTime()) / (1000 * 60 * 60);
+
+        if (diffInHours < 1) {
+            return 'Just now';
+        } else if (diffInHours < 24) {
+            return `${Math.floor(diffInHours)}h ago`;
+        } else if (diffInHours < 48) {
+            return 'Yesterday';
+        } else {
+            return noteDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: noteDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+            });
+        }
+    };
+
     return (
-        <div className="w-72 bg-gray-900 text-white flex flex-col border-r border-gray-800">
-            {/* Create Note Button */}
-            {/* <div className="p-3 border-b border-gray-800">
-                <button
-                    onClick={onCreateNew}
-                    className="flex items-center gap-2 w-full px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-                >
-                    <Plus size={16} />
-                    New Note
-                </button>
-            </div> */}
-
-            {/* Search Bar */}
-            {/* <div className="p-3 border-b border-gray-800">
-                <div className="flex items-center bg-gray-800 rounded px-2 py-1">
-                    <Search size={16} className="text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Search notes..."
-                        value={searchTerm}
-                        onChange={(e) => onSearchTermChange(e.target.value)}
-                        className="bg-transparent outline-none text-sm text-gray-200 ml-2 flex-1"
-                    />
-                </div>
-            </div> */}
-
+        <div className="flex-1 overflow-y-auto">
             {/* Notes List */}
-            <div className="overflow-y-auto flex-grow">
+            <div className="p-4 space-y-2">
                 {filteredNotes.length === 0 && (
-                    <p className="p-4 text-gray-400 text-sm">No notes found.</p>
+                    <div className="text-center py-12">
+                        <div className="w-16 h-16 bg-slate-100/60 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <FileText size={24} className="text-slate-400" />
+                        </div>
+                        <p className="text-slate-500 text-sm font-medium">No notes found</p>
+                        <p className="text-slate-400 text-xs mt-1">Create your note </p>
+                    </div>
                 )}
+
                 {filteredNotes.map((note) => (
                     <div
                         key={note.id}
                         onClick={() => onSelect(note.id)}
-                        className={`p-3 cursor-pointer flex justify-between items-center border-b border-gray-800 transition
-              ${selectedNoteId === note.id
-                                ? 'bg-blue-600'
-                                : 'hover:bg-gray-800'
+                        className={`group p-4 cursor-pointer rounded-xl border transition-all duration-200 hover:shadow-md ${selectedNoteId === note.id
+                                ? 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-300/40 shadow-lg'
+                                : 'bg-white/60 hover:bg-white/80 border-slate-200/40 hover:border-slate-300/60'
                             }`}
                     >
-                        <div>
-                            <div className="font-semibold truncate max-w-[150px]">
-                                {note.title || 'Untitled'}
-                            </div>
-                            <div className="text-xs text-gray-400 truncate max-w-[150px]">
-                                {new Date(note.lastModified).toLocaleString()}
+                        <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                    {note.pinned && (
+                                        <Pin size={14} className="text-amber-500 flex-shrink-0" />
+                                    )}
+                                    <h3 className={`font-semibold truncate text-sm ${selectedNoteId === note.id
+                                            ? 'text-slate-800'
+                                            : 'text-slate-700'
+                                        }`}>
+                                        {note.title || 'Untitled Note'}
+                                    </h3>
+                                </div>
+
+                                {/* Content Preview */}
+                                <p className="text-xs text-slate-500 truncate max-w-full mb-2">
+                                    {note.content.replace(/<[^>]*>/g, '').substring(0, 60)}
+                                    {note.content.replace(/<[^>]*>/g, '').length > 60 && '...'}
+                                </p>
+
+                                {/* Tags */}
+                                {note.tags && note.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mb-2">
+                                        {note.tags.slice(0, 2).map((tag) => (
+                                            <span
+                                                key={tag}
+                                                className="inline-block bg-blue-100/60 text-blue-700 px-2 py-0.5 rounded-md text-xs font-medium border border-blue-200/40"
+                                            >
+                                                {tag}
+                                            </span>
+                                        ))}
+                                        {note.tags.length > 2 && (
+                                            <span className="inline-block bg-slate-100/60 text-slate-600 px-2 py-0.5 rounded-md text-xs font-medium border border-slate-200/40">
+                                                +{note.tags.length - 2}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Time */}
+                                <div className="flex items-center gap-1 text-xs text-slate-400">
+                                    <Clock size={12} />
+                                    <span>{formatDate(note.lastModified)}</span>
+                                </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     onPinToggle(note.id);
                                 }}
                                 title={note.pinned ? 'Unpin note' : 'Pin note'}
-                                className="text-gray-400 hover:text-white transition"
+                                className={`p-2 rounded-lg transition-all duration-200 ${note.pinned
+                                        ? 'text-amber-600 hover:bg-amber-100/60'
+                                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/60'
+                                    }`}
                             >
                                 {note.pinned ? <Pin size={16} /> : <PinOff size={16} />}
                             </button>
@@ -103,7 +147,7 @@ const NotesSidebar: React.FC<Props> = ({
                                     onDelete(note.id);
                                 }}
                                 title="Delete note"
-                                className="text-red-400 hover:text-red-600 transition"
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-100/60 rounded-lg transition-all duration-200"
                             >
                                 <Trash2 size={16} />
                             </button>

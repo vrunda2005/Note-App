@@ -7,7 +7,10 @@ import {
     AlignLeft,
     AlignCenter,
     AlignRight,
-    Highlighter
+    Highlighter,
+    PenTool,
+    Image,
+    Palette
 } from 'lucide-react';
 
 interface Props {
@@ -28,6 +31,7 @@ export default function RichTextEditor({
     const [activeStyles, setActiveStyles] = useState<string[]>([]);
     const [highlightColor, setHighlightColor] = useState<string | null>(null);
     const [showHighlightMenu, setShowHighlightMenu] = useState(false);
+    const [showDrawingCanvas, setShowDrawingCanvas] = useState(false);
     const isInternalUpdate = useRef(false);
 
     const highlightColors = [
@@ -307,32 +311,32 @@ export default function RichTextEditor({
     const fontSizes = ['8px', '10px', '12px', '14px', '18px', '24px', '36px', '48px'];
 
     return (
-        <div className="w-full bg-white text-gray-900 rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+        <div className="w-full bg-white text-slate-800 rounded-2xl shadow-xl border border-slate-200/60 overflow-hidden">
             {!readOnly && (
-                <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 p-4">
-                    <div className="flex flex-wrap items-center gap-3">
+                <div className="bg-gradient-to-r from-slate-50 to-blue-50/30 border-b border-slate-200/60 p-6">
+                    <div className="flex flex-wrap items-center gap-4">
                         {/* Font Family */}
                         <select
                             onChange={(e) => exec('fontName', e.target.value)}
-                            className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
+                            className="border border-slate-200/60 rounded-xl px-4 py-2.5 text-sm bg-white/80 hover:border-slate-300/60 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200 backdrop-blur-sm"
                             defaultValue=""
                         >
-                            <option value="" disabled className="text-gray-500">Font</option>
+                            <option value="" disabled className="text-slate-500">Font</option>
                             {fonts.map(f => <option key={f} value={f}>{f}</option>)}
                         </select>
 
                         {/* Font Size */}
                         <select
                             onChange={(e) => exec('fontSize', String(fontSizes.indexOf(e.target.value) + 1))}
-                            className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
+                            className="border border-slate-200/60 rounded-xl px-4 py-2.5 text-sm bg-white/80 hover:border-slate-300/60 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200 backdrop-blur-sm"
                             defaultValue=""
                         >
-                            <option value="" disabled className="text-gray-500">Size</option>
+                            <option value="" disabled className="text-slate-500">Size</option>
                             {fontSizes.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
 
                         {/* Divider */}
-                        <div className="w-px h-6 bg-gray-300"></div>
+                        <div className="w-px h-8 bg-slate-300/60"></div>
 
                         {/* Bold / Italic / Underline */}
                         {[
@@ -343,18 +347,18 @@ export default function RichTextEditor({
                             <button
                                 key={cmd}
                                 onClick={() => exec(cmd)}
-                                className={`p-2.5 rounded-lg hover:bg-gray-200 transition-colors ${activeStyles.includes(style)
-                                    ? 'bg-blue-100 text-blue-600 ring-2 ring-blue-200'
-                                    : 'text-gray-600 hover:text-gray-800'
+                                className={`p-3 rounded-xl hover:bg-slate-200/60 transition-all duration-200 ${activeStyles.includes(style)
+                                    ? 'bg-blue-100/80 text-blue-600 ring-2 ring-blue-200/60 shadow-md'
+                                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/60'
                                     }`}
                                 title={title}
                             >
-                                <Icon size={18} />
+                                <Icon size={20} />
                             </button>
                         ))}
 
                         {/* Divider */}
-                        <div className="w-px h-6 bg-gray-300"></div>
+                        <div className="w-px h-8 bg-slate-300/60"></div>
 
                         {/* Align */}
                         {[
@@ -365,15 +369,27 @@ export default function RichTextEditor({
                             <button
                                 key={cmd}
                                 onClick={() => exec(cmd)}
-                                className="p-2.5 rounded-lg hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition-colors"
+                                className="p-3 rounded-xl hover:bg-slate-200/60 text-slate-600 hover:text-slate-800 transition-all duration-200"
                                 title={title}
                             >
-                                <Icon size={18} />
+                                <Icon size={20} />
                             </button>
                         ))}
 
                         {/* Divider */}
-                        <div className="w-px h-6 bg-gray-300"></div>
+                        <div className="w-px h-8 bg-slate-300/60"></div>
+
+                        {/* Drawing Tool */}
+                        <button
+                            onClick={() => setShowDrawingCanvas(!showDrawingCanvas)}
+                            className={`p-3 rounded-xl transition-all duration-200 ${showDrawingCanvas
+                                ? 'bg-gradient-to-r from-purple-100/80 to-pink-100/80 text-purple-600 ring-2 ring-purple-200/60 shadow-md'
+                                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/60'
+                                }`}
+                            title="Drawing Tool"
+                        >
+                            <PenTool size={20} />
+                        </button>
 
                         {/* Highlight */}
                         <div className="relative highlight-menu">
@@ -383,21 +399,21 @@ export default function RichTextEditor({
                                     saveSelection();
                                     setShowHighlightMenu(p => !p);
                                 }}
-                                className={`p-2.5 rounded-lg border-2 transition-all ${highlightColor
-                                    ? 'border-gray-300 bg-white'
-                                    : 'border-gray-300 hover:border-gray-400'
-                                    } flex items-center gap-2 hover:bg-gray-50`}
+                                className={`p-3 rounded-xl border-2 transition-all duration-200 ${highlightColor
+                                    ? 'border-slate-300 bg-white/80 shadow-md'
+                                    : 'border-slate-200/60 hover:border-slate-300/60'
+                                    } flex items-center gap-2 hover:bg-slate-100/60`}
                                 title="Highlight Text"
                                 style={{ backgroundColor: highlightColor || undefined }}
                             >
-                                <Highlighter size={18} className="text-gray-600" />
-                                <span className="text-sm font-medium text-gray-700">Highlight</span>
+                                <Highlighter size={20} className="text-slate-600" />
+                                <span className="text-sm font-medium text-slate-700">Highlight</span>
                             </button>
 
                             {showHighlightMenu && (
-                                <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl p-3 z-50 min-w-[200px]">
-                                    <div className="text-sm font-medium text-gray-700 mb-3">Choose Highlight Color</div>
-                                    <div className="grid grid-cols-5 gap-2">
+                                <div className="absolute top-full left-0 mt-3 bg-white/95 backdrop-blur-sm border border-slate-200/60 rounded-2xl shadow-2xl p-4 z-50 min-w-[220px]">
+                                    <div className="text-sm font-medium text-slate-700 mb-4">Choose Highlight Color</div>
+                                    <div className="grid grid-cols-5 gap-3">
                                         {highlightColors.map((color) => (
                                             <button
                                                 key={color.value}
@@ -405,7 +421,7 @@ export default function RichTextEditor({
                                                     e.preventDefault();
                                                     toggleHighlight(color.value);
                                                 }}
-                                                className="w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 hover:scale-110 transition-all duration-200 cursor-pointer"
+                                                className="w-12 h-12 rounded-xl border-2 border-slate-200/60 hover:border-slate-400/60 hover:scale-110 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md"
                                                 style={{
                                                     backgroundColor: color.value,
                                                     color: color.textColor
@@ -416,13 +432,13 @@ export default function RichTextEditor({
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <div className="mt-4 pt-4 border-t border-slate-100/60">
                                         <button
                                             onMouseDown={(e) => {
                                                 e.preventDefault();
                                                 setShowHighlightMenu(false);
                                             }}
-                                            className="w-full px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-md transition-colors"
+                                            className="w-full px-4 py-2.5 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-50/80 rounded-xl transition-all duration-200"
                                         >
                                             Cancel
                                         </button>
@@ -453,22 +469,38 @@ export default function RichTextEditor({
                         }
                     }
                 }}
-                className={`min-h-[300px] p-6 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-inset ${readOnly ? 'bg-gray-50 text-gray-600' : 'bg-white'
-                    } prose prose-sm max-w-none`}
+                className={`min-h-[400px] p-8 focus:outline-none focus:ring-2 focus:ring-blue-400/20 focus:ring-inset ${readOnly ? 'bg-slate-50/80 text-slate-600' : 'bg-white'
+                    } prose prose-slate max-w-none prose-headings:text-slate-800 prose-p:text-slate-700 prose-strong:text-slate-800 prose-em:text-slate-700`}
                 suppressContentEditableWarning
                 spellCheck
                 style={{ caretColor: '#3b82f6' }}
             />
 
-            {/* Drawing Area */}
-            <div className="border-t border-gray-200 bg-gray-50 p-4">
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">Drawing Canvas</h2>
-                <DrawCanvas
-                    onSave={(dataUrl: string) => {
-                        console.log('Canvas saved:', dataUrl);
-                    }}
-                />
-            </div>
+            {/* Drawing Canvas - Toggleable */}
+            {showDrawingCanvas && (
+                <div className="border-t border-slate-200/60 bg-gradient-to-r from-purple-50/50 to-pink-50/50 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                            <PenTool size={22} className="text-purple-600" />
+                            Drawing Canvas
+                        </h3>
+                        <button
+                            onClick={() => setShowDrawingCanvas(false)}
+                            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100/60 rounded-lg transition-all duration-200"
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <DrawCanvas
+                        onSave={(dataUrl: string) => {
+                            console.log('Canvas saved:', dataUrl);
+                            // Here you could insert the drawing into the editor
+                            // or save it as an attachment
+                        }}
+                        onCancel={() => setShowDrawingCanvas(false)}
+                    />
+                </div>
+            )}
         </div>
     );
 }

@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📝 Take-Note – AI-Powered Rich Text Notes App
 
-## Getting Started
+A modern **Next.js** application for creating, editing, and managing rich text notes with **AI-powered features** and **local data persistence**.  
+The app is optimized for simplicity, speed, and offline-friendly usage via IndexedDB.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🚀 Core Functionalities
+
+### 1. Custom Rich Text Editor
+
+- Built **from scratch** without libraries like TinyMCE or Quill.
+- Supports:
+  - **Bold**
+  - **Italic**
+  - **Underline**
+  - **Text alignment** (Left, Center, Right)
+  - **Font size changes**
+- Toolbar with buttons for easy text formatting.
+
+---
+
+### 2. Note Management
+
+- **Create, edit, delete** notes.
+- **Pin important notes** – pinned notes always appear at the top of the list.
+- **Search notes** by title or content.
+
+---
+
+### 3. Basic UI with Persistence
+
+- Clean, intuitive layout with:
+  - Formatting toolbar
+  - Notes list sidebar
+  - Main editing area
+- **IndexedDB storage** to save notes and preferences between sessions.
+
+---
+
+### 4. AI Features
+
+> Powered by an external AI API (configurable in code).
+
+- **Auto Glossary Highlighting** – highlights key terms, hover to view definitions.
+- **Summarization** – condenses note content to 1–2 sentences.
+- **AI Tag Suggestions** – suggests 3–5 relevant tags for the note.
+- **Grammar Check** – underlines grammatical errors.
+
+---
+
+### 5. Note Encryption
+
+- Password-protect individual notes.
+- Requires password entry to view encrypted content.
+
+---
+
+### 6. Hosting
+
+- Deployed to [Vercel](https://vercel.com/) for production hosting.
+
+---
+
+## 📂 Project Structure
+
+img
+
+## ⚙️ Tech Stack
+
+- **Frontend:** Next.js 14 (App Router) + TypeScript
+- **Styling:** Tailwind CSS
+- **Data Storage:** IndexedDB (via `idb`)
+- **AI Integration:** Configurable API (Grok Cloud api )
+- **Encryption:** AES via Web Crypto API
+
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+AES-GCM (Advanced Encryption Standard – Galois/Counter Mode) for encryption, and PBKDF2 (Password-Based Key Derivation Function 2) with SHA-256 for secure key derivation.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+AES-256-GCM: Authenticated encryption mode that ensures both confidentiality and integrity of the data.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+PBKDF2 with SHA-256: Derives the AES key from the user’s password using 120,000 iterations and a random 16-byte salt, making brute-force attacks computationally expensive.
 
-## Learn More
+Each encrypted note uses a unique Initialization Vector (IV) and salt for maximum security.
 
-To learn more about Next.js, take a look at the following resources:
+All cryptographic operations are performed locally in the browser using the Web Crypto API — the password never leaves the user’s device.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
