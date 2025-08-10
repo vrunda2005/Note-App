@@ -13,7 +13,9 @@ async function getKeyFromPassword(password: string, salt: Uint8Array) {
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt,
+      // The fix is to pass the underlying buffer of the salt directly.
+      // This resolves the TypeScript type mismatch.
+      salt: new Uint8Array(salt), 
       iterations: 120000,
       hash: 'SHA-256'
     },
@@ -47,6 +49,8 @@ export async function decryptContent(dataBase64: string, password: string) {
     const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
     return decoder.decode(decrypted);
   } catch (e) {
+    // It's better to log the actual error for debugging if needed
+    console.error("Decryption failed:", e);
     throw new Error('Incorrect password or corrupted data');
   }
 }
