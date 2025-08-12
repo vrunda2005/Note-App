@@ -32,6 +32,7 @@ export default function RichTextEditor({
     const [highlightColor, setHighlightColor] = useState<string | null>(null);
     const [showHighlightMenu, setShowHighlightMenu] = useState(false);
     const [showDrawingCanvas, setShowDrawingCanvas] = useState(false);
+    const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
     const isInternalUpdate = useRef(false);
 
     const highlightColors = [
@@ -62,7 +63,7 @@ export default function RichTextEditor({
         }
     };
 
-    // Apply prop highlights with better styling
+    // Enhanced glossary highlighting with tooltips
     useEffect(() => {
         if (!ref.current) return;
         if (!highlightTerms.length) {
@@ -91,13 +92,37 @@ export default function RichTextEditor({
 
         isInternalUpdate.current = true;
         let html = content;
-        highlightTerms.forEach(term => {
+        
+        // Create a unique identifier for each term to avoid conflicts
+        highlightTerms.forEach((term, index) => {
             if (term.trim()) {
                 const regex = new RegExp(`\\b(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
-                html = html.replace(regex, `<span class="inline-block bg-yellow-200 text-yellow-800 px-1 py-0.5 rounded font-medium" data-glossary-term="${term}">$1</span>`);
+                html = html.replace(regex, `<span class="glossary-term inline-block bg-yellow-200 text-yellow-800 px-1 py-0.5 rounded font-medium cursor-help" data-glossary-term="${term}" data-term-index="${index}">$1</span>`);
             }
         });
+        
         ref.current.innerHTML = html;
+
+        // Add event listeners for tooltips
+        const glossaryTerms = ref.current.querySelectorAll('.glossary-term');
+        glossaryTerms.forEach((termElement) => {
+            termElement.addEventListener('mouseenter', (e) => {
+                const target = e.target as HTMLElement;
+                const term = target.dataset.glossaryTerm;
+                if (term) {
+                    const rect = target.getBoundingClientRect();
+                    setTooltip({
+                        text: `Glossary term: ${term}`,
+                        x: rect.left + rect.width / 2,
+                        y: rect.top - 10
+                    });
+                }
+            });
+
+            termElement.addEventListener('mouseleave', () => {
+                setTooltip(null);
+            });
+        });
 
         // Restore cursor position after applying highlights
         setTimeout(() => {
@@ -171,7 +196,7 @@ export default function RichTextEditor({
 
         if (ref.current) {
             const cleanContent = ref.current.innerHTML
-                .replace(/<span class="[^"]*" data-glossary-term="[^"]*">([^<]*)<\/span>/gi, '$1')
+                .replace(/<span class="[^"]*" data-glossary-term="[^"]*" data-term-index="[^"]*">([^<]*)<\/span>/gi, '$1')
                 .replace(/<mark class="prop-highlight">([^<]*)<\/mark>/gi, '$1');
             onChange(cleanContent);
 
@@ -311,7 +336,22 @@ export default function RichTextEditor({
     const fontSizes = ['8px', '10px', '12px', '14px', '18px', '24px', '36px', '48px'];
 
     return (
-        <div className="w-full bg-white text-slate-800 rounded-2xl shadow-xl border border-slate-200/60 overflow-hidden">
+        <div className="w-full bg-white text-slate-800 rounded-2xl shadow-xl border border-slate-200/60 overflow-hidden relative">
+            {/* Tooltip */}
+            {tooltip && (
+                <div
+                    className="fixed z-50 bg-slate-800 text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none"
+                    style={{
+                        left: tooltip.x,
+                        top: tooltip.y,
+                        transform: 'translateX(-50%)'
+                    }}
+                >
+                    {tooltip.text}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-800"></div>
+                </div>
+            )}
+
             {!readOnly && (
                 <div className="bg-gradient-to-r from-slate-50 to-blue-50/30 border-b border-slate-200/60 p-6">
                     <div className="flex flex-wrap items-center gap-4">

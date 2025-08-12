@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useNotes } from "@/hooks/useNotes";
+import { useAI } from "@/hooks/useAI";
 import NotesSidebar from "@/components/NotesSidebar";
 import NoteEditor from "@/components/NoteEditor";
 import SummaryBox from "@/components/SummaryBox";
@@ -21,20 +22,96 @@ const Home: React.FC = () => {
     togglePin,
   } = useNotes();
 
+  const { aiLoading, generateSummary, suggestTags, checkGrammar, highlightGlossary, checkReadability } = useAI();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDrawMode, setIsDrawMode] = useState(false);
   const [showDrawingCanvas, setShowDrawingCanvas] = useState(false);
-
+  const [glossaryTerms, setGlossaryTerms] = useState<string[]>([]);
 
   const handleSelectNote = (id: string) => {
     setSelectedNoteId(id);
     setSidebarOpen(false);
     setIsDrawMode(false); // reset when switching notes
+    setGlossaryTerms([]); // clear glossary terms when switching notes
   };
 
   const handleToggleDrawMode = () => {
     setIsDrawMode((prev) => !prev);
+  };
+
+  // AI feature handlers
+  const handleSuggestTags = async () => {
+    if (!selectedNote?.content?.trim()) return;
+    try {
+      const tags = await suggestTags(selectedNote.content);
+      if (tags && tags.length > 0) {
+        const mergedTags = Array.from(new Set([...(selectedNote.tags || []), ...tags]));
+        await updateNote({ id: selectedNote.id, tags: mergedTags });
+      }
+    } catch (error) {
+      console.error('Error suggesting tags:', error);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!selectedNote?.content?.trim()) return;
+    try {
+      const summary = await generateSummary(selectedNote.content);
+      if (summary) {
+        await updateNote({ id: selectedNote.id, summary });
+      }
+    } catch (error) {
+      console.error('Error generating summary:', error);
+    }
+  };
+
+  const handleGrammarCheck = async () => {
+    if (!selectedNote?.content?.trim()) return;
+    try {
+      const corrected = await checkGrammar(selectedNote.content);
+      if (corrected) {
+        console.log("Grammar check results:", corrected);
+      }
+    } catch (error) {
+      console.error('Error checking grammar:', error);
+    }
+  };
+
+  const handleGlossaryHighlight = async () => {
+    if (!selectedNote?.content?.trim()) return;
+    try {
+      const terms = await highlightGlossary(selectedNote.content);
+      if (terms && terms.length > 0) {
+        setGlossaryTerms(terms);
+        // Show success message to user
+        alert(`Found ${terms.length} glossary terms! They are now highlighted in your note.`);
+      } else {
+        setGlossaryTerms([]);
+        alert('No glossary terms found in this note.');
+      }
+    } catch (error) {
+      console.error('Error highlighting glossary:', error);
+      setGlossaryTerms([]);
+      alert('Error analyzing glossary terms. Please try again.');
+    }
+  };
+
+  const handleReadabilityCheck = async () => {
+    if (!selectedNote?.content?.trim()) return;
+    try {
+      const results = await checkReadability(selectedNote.content);
+      if (results) {
+        console.log("Readability check results:", results);
+      }
+    } catch (error) {
+      console.error('Error checking readability:', error);
+    }
+  };
+
+  const clearGlossaryTerms = () => {
+    setGlossaryTerms([]);
   };
 
   return (
@@ -146,6 +223,7 @@ const Home: React.FC = () => {
               updateNote={updateNote}
               onToggleDrawMode={handleToggleDrawMode}
               isDrawMode={isDrawMode}
+              glossaryTerms={glossaryTerms}
             />
 
             {isDrawMode ? (
@@ -172,12 +250,13 @@ const Home: React.FC = () => {
                 onTagsChange={(tags) =>
                   updateNote({ id: selectedNote.id, tags })
                 }
-                aiLoading={false}
-                onSuggestTags={() => { }}
-                onGrammarCheck={() => { }}
-                onGenerateSummary={() => { }}
-                onGlossaryHighlight={() => { }}
-                glossaryTerms={[]}
+                aiLoading={aiLoading}
+                onSuggestTags={handleSuggestTags}
+                onGrammarCheck={handleGrammarCheck}
+                onGenerateSummary={handleGenerateSummary}
+                onGlossaryHighlight={handleGlossaryHighlight}
+                glossaryTerms={glossaryTerms}
+                onClearGlossaryTerms={clearGlossaryTerms}
               />
             )}
 

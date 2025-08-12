@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 // This defines the structure for API requests
 interface AIRequest {
-  task: 'summarize' | 'getTags' | 'grammarCheck' | 'glossaryHighlight';
+  task: 'summarize' | 'getTags' | 'grammarCheck' | 'glossaryHighlight' | 'readabilityCheck';
   text: string;
 }
 
@@ -35,7 +35,6 @@ const callMyBackend = async (body: AIRequest): Promise<any> => {
     throw error;
   }
 };
-
 
 export const useAI = () => {
   const [aiLoading, setAiLoading] = useState(false);
@@ -93,5 +92,25 @@ export const useAI = () => {
     }
   };
 
-  return { aiLoading, generateSummary, suggestTags, checkGrammar, highlightGlossary };
+  const checkReadability = async (text: string): Promise<string | null> => {
+    setAiLoading(true);
+    try {
+      const data = await callMyBackend({ task: 'readabilityCheck', text });
+      return data.result;
+    } catch (error) {
+      console.error('Failed to check readability:', error);
+      return null;
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  return { 
+    aiLoading, 
+    generateSummary, 
+    suggestTags, 
+    checkGrammar, 
+    highlightGlossary,
+    checkReadability 
+  };
 };

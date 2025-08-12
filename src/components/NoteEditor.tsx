@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import RichTextEditor from './RichTextEditor';
-import { PlusCircle, X } from 'lucide-react';
+import { PlusCircle, X, Sparkles } from 'lucide-react';
 
 interface Props {
     title: string;
@@ -16,6 +16,7 @@ interface Props {
     onGenerateSummary: () => void;
     onGlossaryHighlight: () => void;
     glossaryTerms: string[];
+    onClearGlossaryTerms: () => void;
 }
 
 export default function NoteEditor({
@@ -32,10 +33,9 @@ export default function NoteEditor({
     onGenerateSummary,
     onGlossaryHighlight,
     glossaryTerms,
+    onClearGlossaryTerms,
 }: Props) {
     const [newTag, setNewTag] = useState('');
-
-
 
     const addTag = () => {
         const t = newTag.trim();
@@ -60,7 +60,38 @@ export default function NoteEditor({
 
             {/* Rich text editor */}
             <div>
-                <label className="block text-sm font-medium text-slate-600 mb-3">Note Content</label>
+                <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-slate-600">Note Content</label>
+                    {glossaryTerms.length > 0 ? (
+                        <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50/80 px-3 py-1 rounded-lg border border-amber-200/60">
+                            <Sparkles size={16} className="text-amber-600" />
+                            <span className="font-medium">{glossaryTerms.length} glossary term{glossaryTerms.length !== 1 ? 's' : ''} highlighted</span>
+                            <button
+                                onClick={() => window.alert(`Glossary terms found:\n\n${glossaryTerms.map((term, index) => `${index + 1}. ${term}`).join('\n')}`)}
+                                className="text-amber-600 hover:text-amber-800 hover:bg-amber-100/60 px-2 py-1 rounded text-xs transition-colors"
+                                title="View all glossary terms"
+                            >
+                                View Terms
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (window.confirm('Clear all glossary term highlighting?')) {
+                                        onClearGlossaryTerms();
+                                    }
+                                }}
+                                className="text-amber-600 hover:text-amber-800 hover:bg-amber-100/60 px-2 py-1 rounded text-xs transition-colors"
+                                title="Clear glossary highlighting"
+                            >
+                                Clear
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50/80 px-3 py-1 rounded-lg border border-slate-200/60">
+                            <Sparkles size={16} className="text-slate-400" />
+                            <span>No glossary terms highlighted</span>
+                        </div>
+                    )}
+                </div>
                 <RichTextEditor
                     content={content}
                     onChange={onContentChange}
