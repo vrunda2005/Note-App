@@ -58,7 +58,7 @@ The app is optimized for simplicity, speed, and offline-friendly usage via Index
 
 ### 6. Hosting
 
-- Deployed to [Vercel](https://vercel.com/) for production hosting.
+- Deployed to [Vercel](https://note-app-tan-omega.vercel.app/) for production hosting.
 
 ---
 
