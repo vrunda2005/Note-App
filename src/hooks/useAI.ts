@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 // This defines the structure for API requests
 interface AIRequest {
-  task: 'summarize' | 'getTags' | 'grammarCheck' | 'glossaryHighlight' | 'readabilityCheck';
+  task: 'summarize' | 'getTags' | 'grammarCheck' | 'glossaryHighlight' | 'readabilityCheck' | 'rewrite';
   text: string;
 }
 
@@ -27,7 +27,19 @@ const callMyBackend = async (body: AIRequest): Promise<any> => {
     }
 
     // If the response is OK, parse and return the JSON
-    return await response.json();
+    const json = await response.json();
+    // If the server indicates it used a local fallback, surface a small notification so users
+    // understand that AI output was generated locally (development fallback).
+    if (json && json.fallbackUsed) {
+      try {
+        // Dispatch a non-blocking CustomEvent so the UI can show a banner or toast.
+        // Event detail includes optional modelUsed and attemptedModels for richer debugging.
+        window.dispatchEvent(new CustomEvent('ai:fallback', { detail: { modelUsed: json.modelUsed ?? null, attemptedModels: json.attemptedModels ?? null, task: body.task } }));
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    return json;
 
   } catch (error) {
     // Log the error and re-throw it to be handled by the calling function
@@ -57,7 +69,8 @@ export const useAI = () => {
     try {
       const data = await callMyBackend({ task: 'getTags', text });
       // The API returns a comma-separated string, so we split it
-      return data.result.split(',').map((tag: string) => tag.trim());
+      const raw: string = typeof data.result === 'string' ? data.result : String(data.result);
+      return raw.split(',').map((tag: string) => tag.trim());
     } catch (error) {
       console.error('Failed to suggest tags:', error);
       return null;
@@ -83,7 +96,8 @@ export const useAI = () => {
     setAiLoading(true);
     try {
       const data = await callMyBackend({ task: 'glossaryHighlight', text });
-      return data.result.split(',').map((term: string) => term.trim());
+      const raw: string = typeof data.result === 'string' ? data.result : String(data.result);
+      return raw.split(',').map((term: string) => term.trim());
     } catch (error) {
       console.error('Failed to highlight glossary:', error);
       return null;

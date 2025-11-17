@@ -1,11 +1,13 @@
 import React from 'react';
 import { type Note } from '@/types';
-import { Plus, Search, Pin, PinOff, Trash2, Clock, FileText } from 'lucide-react';
+import { Plus, Search, Pin, PinOff, Trash2, Clock, FileText, Lock } from 'lucide-react';
 
 interface Props {
     notes: Note[];
     selectedNoteId: string | null;
-    onSelect: (id: string) => void;
+    onSelect: (id: string, passwordProtected?: boolean) => void;
+    onUnlock?: (id: string) => void;
+    unlockedContents?: Record<string, string>;
     onDelete: (id: string) => void;
     onPinToggle: (id: string) => void;
     onCreateNew: () => void;
@@ -22,6 +24,8 @@ const NotesSidebar: React.FC<Props> = ({
     onCreateNew,
     searchTerm,
     onSearchTermChange,
+    onUnlock,
+    unlockedContents,
 }) => {
     const filteredNotes = notes.filter((note) => {
         const lcTerm = searchTerm.toLowerCase();
@@ -30,11 +34,19 @@ const NotesSidebar: React.FC<Props> = ({
         return titleMatch || contentMatch;
     });
 
+
     filteredNotes.sort((a, b) => {
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
         return b.lastModified - a.lastModified;
     });
+
+    const stripHTMLAndDecode = (html: string) => {
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = html;
+        return tempDiv.textContent || tempDiv.innerText || "";
+    };
+
 
     const formatDate = (timestamp: number) => {
         const now = new Date();
@@ -73,10 +85,10 @@ const NotesSidebar: React.FC<Props> = ({
                 {filteredNotes.map((note) => (
                     <div
                         key={note.id}
-                        onClick={() => onSelect(note.id)}
+                        onClick={() => onSelect(note.id, note.passwordProtected)}
                         className={`group p-4 cursor-pointer rounded-xl border transition-all duration-200 hover:shadow-md ${selectedNoteId === note.id
-                                ? 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-300/40 shadow-lg'
-                                : 'bg-white/60 hover:bg-white/80 border-slate-200/40 hover:border-slate-300/60'
+                            ? 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-300/40 shadow-lg'
+                            : 'bg-white/60 hover:bg-white/80 border-slate-200/40 hover:border-slate-300/60'
                             }`}
                     >
                         <div className="flex items-start justify-between mb-2">
@@ -85,19 +97,33 @@ const NotesSidebar: React.FC<Props> = ({
                                     {note.pinned && (
                                         <Pin size={14} className="text-amber-500 flex-shrink-0" />
                                     )}
+                                    {note.passwordProtected && (
+                                        <Lock size={14} className="text-slate-500 flex-shrink-0" />
+                                    )}
                                     <h3 className={`font-semibold truncate text-sm ${selectedNoteId === note.id
-                                            ? 'text-slate-800'
-                                            : 'text-slate-700'
+                                        ? 'text-slate-800'
+                                        : 'text-slate-700'
                                         }`}>
                                         {note.title || 'Untitled Note'}
                                     </h3>
+                                    {unlockedContents && unlockedContents[note.id] && (
+                                        <span className="ml-2 inline-flex items-center text-emerald-700 text-xs font-semibold">Unlocked</span>
+                                    )}
                                 </div>
 
                                 {/* Content Preview */}
-                                <p className="text-xs text-slate-500 truncate max-w-full mb-2">
+                                {note.passwordProtected ? (
+                                    <p className="text-xs text-amber-700 truncate max-w-full mb-2">Locked — enter password to view</p>
+                                ) : (
+                                    <p className="text-xs text-slate-500 truncate max-w-full mb-2">
+                                        {stripHTMLAndDecode(note.content).substring(0, 60)}
+                                        {stripHTMLAndDecode(note.content).length > 60 && '...'}
+                                    </p>
+                                )}
+                                {/* <p className="text-xs text-slate-500 truncate max-w-full mb-2">
                                     {note.content.replace(/<[^>]*>/g, '').substring(0, 60)}
                                     {note.content.replace(/<[^>]*>/g, '').length > 60 && '...'}
-                                </p>
+                                </p> */}
 
                                 {/* Tags */}
                                 {note.tags && note.tags.length > 0 && (
@@ -135,12 +161,25 @@ const NotesSidebar: React.FC<Props> = ({
                                 }}
                                 title={note.pinned ? 'Unpin note' : 'Pin note'}
                                 className={`p-2 rounded-lg transition-all duration-200 ${note.pinned
-                                        ? 'text-amber-600 hover:bg-amber-100/60'
-                                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/60'
+                                    ? 'text-amber-600 hover:bg-amber-100/60'
+                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/60'
                                     }`}
                             >
                                 {note.pinned ? <Pin size={16} /> : <PinOff size={16} />}
                             </button>
+                            {note.passwordProtected && onUnlock && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onUnlock(note.id);
+                                    }}
+                                    title="Unlock note"
+                                    aria-label="Unlock note"
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                >
+                                    <Lock size={16} />
+                                </button>
+                            )}
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();

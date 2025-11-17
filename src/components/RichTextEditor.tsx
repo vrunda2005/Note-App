@@ -1,17 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import DrawCanvas from './DrawCanvas';
-import {
-    Bold,
-    Italic,
-    Underline,
-    AlignLeft,
-    AlignCenter,
-    AlignRight,
-    Highlighter,
-    PenTool,
-    Image,
-    Palette
-} from 'lucide-react';
+import RichTextToolbar from './RichTextToolbar';
+import EditableContent from './EditableContent';
+import { PenTool } from 'lucide-react';
+// Note: removed unused imports (useNotes, getAllNotes) for clarity
 
 interface Props {
     content: string;
@@ -33,7 +25,9 @@ export default function RichTextEditor({
     const [showHighlightMenu, setShowHighlightMenu] = useState(false);
     const [showDrawingCanvas, setShowDrawingCanvas] = useState(false);
     const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+    // Flag used to ignore internal DOM updates when reflecting content prop -> innerHTML
     const isInternalUpdate = useRef(false);
+
 
     const highlightColors = [
         { name: 'Yellow', value: '#fef3c7', textColor: '#92400e' },
@@ -43,6 +37,7 @@ export default function RichTextEditor({
         { name: 'Orange', value: '#fed7aa', textColor: '#c2410c' }
     ];
 
+
     // Save selection with better handling
     const saveSelection = () => {
         const sel = window.getSelection();
@@ -51,6 +46,7 @@ export default function RichTextEditor({
             if (!range.collapsed) {
                 savedSelection.current = range.cloneRange();
             }
+
         }
     };
 
@@ -72,6 +68,7 @@ export default function RichTextEditor({
             }
             return;
         }
+        // Save current cursor position before applying highlights
 
         // Save current cursor position before applying highlights
         const sel = window.getSelection();
@@ -92,7 +89,7 @@ export default function RichTextEditor({
 
         isInternalUpdate.current = true;
         let html = content;
-        
+
         // Create a unique identifier for each term to avoid conflicts
         highlightTerms.forEach((term, index) => {
             if (term.trim()) {
@@ -100,7 +97,7 @@ export default function RichTextEditor({
                 html = html.replace(regex, `<span class="glossary-term inline-block bg-yellow-200 text-yellow-800 px-1 py-0.5 rounded font-medium cursor-help" data-glossary-term="${term}" data-term-index="${index}">$1</span>`);
             }
         });
-        
+
         ref.current.innerHTML = html;
 
         // Add event listeners for tooltips
@@ -179,6 +176,7 @@ export default function RichTextEditor({
 
     // Handle typing with better content cleaning and cursor preservation
     const handleInput = () => {
+        // Ignore events triggered by internal programmatic updates
         if (isInternalUpdate.current) return;
 
         // Save cursor position before cleaning content
@@ -196,7 +194,9 @@ export default function RichTextEditor({
 
         if (ref.current) {
             const cleanContent = ref.current.innerHTML
+                // unwrap glossary-term spans inserted by highlighting
                 .replace(/<span class="[^"]*" data-glossary-term="[^"]*" data-term-index="[^"]*">([^<]*)<\/span>/gi, '$1')
+                // unwrap our highlight wrapper
                 .replace(/<mark class="prop-highlight">([^<]*)<\/mark>/gi, '$1');
             onChange(cleanContent);
 
@@ -353,167 +353,21 @@ export default function RichTextEditor({
             )}
 
             {!readOnly && (
-                <div className="bg-gradient-to-r from-slate-50 to-blue-50/30 border-b border-slate-200/60 p-6">
-                    <div className="flex flex-wrap items-center gap-4">
-                        {/* Font Family */}
-                        <select
-                            onChange={(e) => exec('fontName', e.target.value)}
-                            className="border border-slate-200/60 rounded-xl px-4 py-2.5 text-sm bg-white/80 hover:border-slate-300/60 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200 backdrop-blur-sm"
-                            defaultValue=""
-                        >
-                            <option value="" disabled className="text-slate-500">Font</option>
-                            {fonts.map(f => <option key={f} value={f}>{f}</option>)}
-                        </select>
-
-                        {/* Font Size */}
-                        <select
-                            onChange={(e) => exec('fontSize', String(fontSizes.indexOf(e.target.value) + 1))}
-                            className="border border-slate-200/60 rounded-xl px-4 py-2.5 text-sm bg-white/80 hover:border-slate-300/60 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200 backdrop-blur-sm"
-                            defaultValue=""
-                        >
-                            <option value="" disabled className="text-slate-500">Size</option>
-                            {fontSizes.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-
-                        {/* Divider */}
-                        <div className="w-px h-8 bg-slate-300/60"></div>
-
-                        {/* Bold / Italic / Underline */}
-                        {[
-                            { icon: Bold, cmd: 'bold', style: 'bold', title: 'Bold' },
-                            { icon: Italic, cmd: 'italic', style: 'italic', title: 'Italic' },
-                            { icon: Underline, cmd: 'underline', style: 'underline', title: 'Underline' }
-                        ].map(({ icon: Icon, cmd, style, title }) => (
-                            <button
-                                key={cmd}
-                                onClick={() => exec(cmd)}
-                                className={`p-3 rounded-xl hover:bg-slate-200/60 transition-all duration-200 ${activeStyles.includes(style)
-                                    ? 'bg-blue-100/80 text-blue-600 ring-2 ring-blue-200/60 shadow-md'
-                                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/60'
-                                    }`}
-                                title={title}
-                            >
-                                <Icon size={20} />
-                            </button>
-                        ))}
-
-                        {/* Divider */}
-                        <div className="w-px h-8 bg-slate-300/60"></div>
-
-                        {/* Align */}
-                        {[
-                            { icon: AlignLeft, cmd: 'justifyLeft', title: 'Align Left' },
-                            { icon: AlignCenter, cmd: 'justifyCenter', title: 'Align Center' },
-                            { icon: AlignRight, cmd: 'justifyRight', title: 'Align Right' }
-                        ].map(({ icon: Icon, cmd, title }) => (
-                            <button
-                                key={cmd}
-                                onClick={() => exec(cmd)}
-                                className="p-3 rounded-xl hover:bg-slate-200/60 text-slate-600 hover:text-slate-800 transition-all duration-200"
-                                title={title}
-                            >
-                                <Icon size={20} />
-                            </button>
-                        ))}
-
-                        {/* Divider */}
-                        <div className="w-px h-8 bg-slate-300/60"></div>
-
-                        {/* Drawing Tool */}
-                        <button
-                            onClick={() => setShowDrawingCanvas(!showDrawingCanvas)}
-                            className={`p-3 rounded-xl transition-all duration-200 ${showDrawingCanvas
-                                ? 'bg-gradient-to-r from-purple-100/80 to-pink-100/80 text-purple-600 ring-2 ring-purple-200/60 shadow-md'
-                                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/60'
-                                }`}
-                            title="Drawing Tool"
-                        >
-                            <PenTool size={20} />
-                        </button>
-
-                        {/* Highlight */}
-                        <div className="relative highlight-menu">
-                            <button
-                                onMouseDown={(e) => {
-                                    e.preventDefault();
-                                    saveSelection();
-                                    setShowHighlightMenu(p => !p);
-                                }}
-                                className={`p-3 rounded-xl border-2 transition-all duration-200 ${highlightColor
-                                    ? 'border-slate-300 bg-white/80 shadow-md'
-                                    : 'border-slate-200/60 hover:border-slate-300/60'
-                                    } flex items-center gap-2 hover:bg-slate-100/60`}
-                                title="Highlight Text"
-                                style={{ backgroundColor: highlightColor || undefined }}
-                            >
-                                <Highlighter size={20} className="text-slate-600" />
-                                <span className="text-sm font-medium text-slate-700">Highlight</span>
-                            </button>
-
-                            {showHighlightMenu && (
-                                <div className="absolute top-full left-0 mt-3 bg-white/95 backdrop-blur-sm border border-slate-200/60 rounded-2xl shadow-2xl p-4 z-50 min-w-[220px]">
-                                    <div className="text-sm font-medium text-slate-700 mb-4">Choose Highlight Color</div>
-                                    <div className="grid grid-cols-5 gap-3">
-                                        {highlightColors.map((color) => (
-                                            <button
-                                                key={color.value}
-                                                onMouseDown={(e) => {
-                                                    e.preventDefault();
-                                                    toggleHighlight(color.value);
-                                                }}
-                                                className="w-12 h-12 rounded-xl border-2 border-slate-200/60 hover:border-slate-400/60 hover:scale-110 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md"
-                                                style={{
-                                                    backgroundColor: color.value,
-                                                    color: color.textColor
-                                                }}
-                                                title={color.name}
-                                            >
-                                                <span className="text-xs font-bold">H</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div className="mt-4 pt-4 border-t border-slate-100/60">
-                                        <button
-                                            onMouseDown={(e) => {
-                                                e.preventDefault();
-                                                setShowHighlightMenu(false);
-                                            }}
-                                            className="w-full px-4 py-2.5 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-50/80 rounded-xl transition-all duration-200"
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                <RichTextToolbar
+                    exec={exec}
+                    activeStyles={activeStyles}
+                    onToggleCanvas={() => setShowDrawingCanvas(p => !p)}
+                    onShowHighlightMenu={(open: boolean) => setShowHighlightMenu(open)}
+                    highlightColor={highlightColor}
+                />
             )}
 
             {/* Editable Area */}
-            <div
-                ref={ref}
-                contentEditable={!readOnly}
+            <EditableContent
+                html={content}
                 onInput={handleInput}
-                onFocus={() => {
-                    // Ensure cursor is visible when editor gains focus
-                    if (ref.current && !readOnly) {
-                        const sel = window.getSelection();
-                        if (sel && sel.rangeCount === 0) {
-                            // If no selection, place cursor at end
-                            const range = document.createRange();
-                            range.selectNodeContents(ref.current);
-                            range.collapse(false);
-                            sel.removeAllRanges();
-                            sel.addRange(range);
-                        }
-                    }
-                }}
-                className={`min-h-[400px] p-8 focus:outline-none focus:ring-2 focus:ring-blue-400/20 focus:ring-inset ${readOnly ? 'bg-slate-50/80 text-slate-600' : 'bg-white'
-                    } prose prose-slate max-w-none prose-headings:text-slate-800 prose-p:text-slate-700 prose-strong:text-slate-800 prose-em:text-slate-700`}
-                suppressContentEditableWarning
-                spellCheck
-                style={{ caretColor: '#3b82f6' }}
+                readOnly={readOnly}
+                contentRef={ref}
             />
 
             {/* Drawing Canvas - Toggleable */}

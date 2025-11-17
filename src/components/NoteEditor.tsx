@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import RichTextEditor from './RichTextEditor';
 import { PlusCircle, X, Sparkles } from 'lucide-react';
 
@@ -8,6 +8,7 @@ interface Props {
     tags: string[];
     aiLoading: boolean;
     passwordProtected: boolean;
+    isUnlocked?: boolean;
     onTitleChange: (t: string) => void;
     onContentChange: (html: string) => void;
     onTagsChange: (tags: string[]) => void;
@@ -25,6 +26,7 @@ export default function NoteEditor({
     tags,
     aiLoading,
     passwordProtected,
+    isUnlocked,
     onTitleChange,
     onContentChange,
     onTagsChange,
@@ -36,6 +38,15 @@ export default function NoteEditor({
     onClearGlossaryTerms,
 }: Props) {
     const [newTag, setNewTag] = useState('');
+    const titleRef = useRef<HTMLInputElement | null>(null);
+
+    // Autofocus the title input when a previously-locked note becomes unlocked
+    useEffect(() => {
+        if (isUnlocked) {
+            // small delay to ensure DOM is ready
+            setTimeout(() => titleRef.current?.focus(), 50);
+        }
+    }, [isUnlocked]);
 
     const addTag = () => {
         const t = newTag.trim();
@@ -51,9 +62,10 @@ export default function NoteEditor({
                 <label className="block text-sm font-medium text-slate-600 mb-3">Note Title</label>
                 <input
                     value={title}
+                    ref={titleRef}
                     onChange={(e) => onTitleChange(e.target.value)}
                     placeholder="Enter a meaningful title for your note..."
-                    disabled={passwordProtected}
+                    disabled={passwordProtected && !isUnlocked}
                     className="w-full px-6 py-4 text-slate-800 bg-white/80 border border-slate-200/60 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 disabled:bg-slate-100/60 disabled:text-slate-500 disabled:cursor-not-allowed transition-all duration-200 backdrop-blur-sm text-lg font-medium placeholder-slate-400"
                 />
             </div>
@@ -95,7 +107,7 @@ export default function NoteEditor({
                 <RichTextEditor
                     content={content}
                     onChange={onContentChange}
-                    readOnly={passwordProtected}
+                    readOnly={passwordProtected && !isUnlocked}
                     highlightTerms={glossaryTerms}
                 />
             </div>

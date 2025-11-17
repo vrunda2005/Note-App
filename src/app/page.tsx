@@ -20,6 +20,8 @@ const Home: React.FC = () => {
     updateNote,
     deleteSelected,
     togglePin,
+    unlockedContents,
+    setUnlockedContent,
   } = useNotes();
 
   const { aiLoading, generateSummary, suggestTags, checkGrammar, highlightGlossary, checkReadability } = useAI();
@@ -29,13 +31,35 @@ const Home: React.FC = () => {
   const [isDrawMode, setIsDrawMode] = useState(false);
   const [showDrawingCanvas, setShowDrawingCanvas] = useState(false);
   const [glossaryTerms, setGlossaryTerms] = useState<string[]>([]);
+  const [showLockedPlaceholder, setShowLockedPlaceholder] = useState(false);
+  const [forceShowPassword, setForceShowPassword] = useState(false);
 
-  const handleSelectNote = (id: string) => {
+  const handleSelectNote = (id: string, passwordProtected?: boolean) => {
     setSelectedNoteId(id);
     setSidebarOpen(false);
     setIsDrawMode(false); // reset when switching notes
     setGlossaryTerms([]); // clear glossary terms when switching notes
+    // If the selected note is password protected and not already unlocked,
+    // show the locked placeholder instead of immediately prompting.
+    const note = notes.find(n => n.id === id);
+    const isUnlocked = note ? !!unlockedContents[note.id] : false;
+    if (passwordProtected && !isUnlocked) {
+      setShowLockedPlaceholder(true);
+    } else {
+      setShowLockedPlaceholder(false);
+    }
   };
+
+  const handleUnlockFromSidebar = (id: string) => {
+    setSelectedNoteId(id);
+    setForceShowPassword(true);
+    setShowLockedPlaceholder(false);
+  };
+
+  // Clear the force flag after the selected note changes so AppHeader can react to it
+  React.useEffect(() => {
+    if (forceShowPassword) setForceShowPassword(false);
+  }, [selectedNoteId]);
 
   const handleToggleDrawMode = () => {
     setIsDrawMode((prev) => !prev);
@@ -43,9 +67,11 @@ const Home: React.FC = () => {
 
   // AI feature handlers
   const handleSuggestTags = async () => {
-    if (!selectedNote?.content?.trim()) return;
+    const merged = selectedNote ? (unlockedContents[selectedNote.id] ?? selectedNote.content) : '';
+    if (!merged?.trim()) return;
     try {
-      const tags = await suggestTags(selectedNote.content);
+      if (!selectedNote) return;
+      const tags = await suggestTags(merged);
       if (tags && tags.length > 0) {
         const mergedTags = Array.from(new Set([...(selectedNote.tags || []), ...tags]));
         await updateNote({ id: selectedNote.id, tags: mergedTags });
@@ -56,9 +82,11 @@ const Home: React.FC = () => {
   };
 
   const handleGenerateSummary = async () => {
-    if (!selectedNote?.content?.trim()) return;
+    const merged = selectedNote ? (unlockedContents[selectedNote.id] ?? selectedNote.content) : '';
+    if (!merged?.trim()) return;
     try {
-      const summary = await generateSummary(selectedNote.content);
+      if (!selectedNote) return;
+      const summary = await generateSummary(merged);
       if (summary) {
         await updateNote({ id: selectedNote.id, summary });
       }
@@ -68,9 +96,10 @@ const Home: React.FC = () => {
   };
 
   const handleGrammarCheck = async () => {
-    if (!selectedNote?.content?.trim()) return;
+    const merged = selectedNote ? (unlockedContents[selectedNote.id] ?? selectedNote.content) : '';
+    if (!merged?.trim()) return;
     try {
-      const corrected = await checkGrammar(selectedNote.content);
+      const corrected = await checkGrammar(merged);
       if (corrected) {
         console.log("Grammar check results:", corrected);
       }
@@ -80,9 +109,10 @@ const Home: React.FC = () => {
   };
 
   const handleGlossaryHighlight = async () => {
-    if (!selectedNote?.content?.trim()) return;
+    const merged = selectedNote ? (unlockedContents[selectedNote.id] ?? selectedNote.content) : '';
+    if (!merged?.trim()) return;
     try {
-      const terms = await highlightGlossary(selectedNote.content);
+      const terms = await highlightGlossary(merged);
       if (terms && terms.length > 0) {
         setGlossaryTerms(terms);
         // Show success message to user
@@ -99,9 +129,10 @@ const Home: React.FC = () => {
   };
 
   const handleReadabilityCheck = async () => {
-    if (!selectedNote?.content?.trim()) return;
+    const merged = selectedNote ? (unlockedContents[selectedNote.id] ?? selectedNote.content) : '';
+    if (!merged?.trim()) return;
     try {
-      const results = await checkReadability(selectedNote.content);
+      const results = await checkReadability(merged);
       if (results) {
         console.log("Readability check results:", results);
       }
@@ -113,6 +144,10 @@ const Home: React.FC = () => {
   const clearGlossaryTerms = () => {
     setGlossaryTerms([]);
   };
+
+  // Derived values for the currently selected note (used in JSX)
+  const isSelectedUnlocked = selectedNote ? !!unlockedContents[selectedNote.id] : false;
+  const selectedCurrentContent = selectedNote ? (unlockedContents[selectedNote.id] ?? selectedNote.content) : '';
 
   return (
     <div className="flex bg-gradient-to-br from-slate-50 to-blue-50 text-slate-800 font-sans overflow-hidden">
@@ -154,6 +189,8 @@ const Home: React.FC = () => {
             notes={notes}
             selectedNoteId={selectedNoteId}
             onSelect={handleSelectNote}
+            onUnlock={handleUnlockFromSidebar}
+            unlockedContents={unlockedContents}
             onDelete={(id) =>
               window.confirm("Delete this note?") && deleteSelected(id)
             }
@@ -218,49 +255,97 @@ const Home: React.FC = () => {
 
         {selectedNote ? (
           <div className="p-4 md:p-8 flex flex-col gap-6">
-            <AppHeader
-              selectedNote={selectedNote}
-              updateNote={updateNote}
-              onToggleDrawMode={handleToggleDrawMode}
-              isDrawMode={isDrawMode}
-              glossaryTerms={glossaryTerms}
-            />
-
-            {isDrawMode ? (
-              <DrawCanvas
-                onSave={(dataUrl: string) => {
-                  console.log('Canvas saved:', dataUrl);
-                  // Here you could insert the drawing into the editor
-                  // or save it as an attachment
-                }}
-                onCancel={() => setShowDrawingCanvas(false)}
-              />
+            {/* If the selected note is password protected and we flagged showLockedPlaceholder,
+                render a placeholder with an Unlock action instead of the editor. */}
+            {selectedNote.passwordProtected && showLockedPlaceholder && !unlockedContents[selectedNote.id] ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-12 bg-white rounded-2xl border border-slate-200/60">
+                {notes[0]?.id === selectedNote.id ? (
+                  <>
+                    <h3 className="text-lg font-semibold mb-2">This is your first note — it's locked</h3>
+                    <p className="text-sm text-slate-500 mb-4">Since this is the first note, others will still see the note list. Click Unlock to view and edit this note.</p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-semibold mb-2">This note is locked</h3>
+                    <p className="text-sm text-slate-500 mb-4">Click Unlock to enter the password and view this note's contents.</p>
+                  </>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowLockedPlaceholder(false)}
+                    className="px-4 py-2 bg-slate-200 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      // open password modal via AppHeader by toggling unlocked content flow.
+                      // We'll programmatically set showLockedPlaceholder false and rely on AppHeader
+                      // to show the password modal when needed.
+                      setShowLockedPlaceholder(false);
+                      // Open the header modal by setting selectedNoteId again (AppHeader checks unlockedContent)
+                      setSelectedNoteId(selectedNote.id);
+                      // AppHeader will show its own password modal when appropriate
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                  >
+                    Unlock
+                  </button>
+                </div>
+              </div>
             ) : (
-              <NoteEditor
-                title={selectedNote.title}
-                content={selectedNote.content}
-                tags={selectedNote.tags || []}
-                passwordProtected={!!selectedNote.passwordProtected}
-                onTitleChange={(title) =>
-                  updateNote({ id: selectedNote.id, title })
-                }
-                onContentChange={(content) =>
-                  updateNote({ id: selectedNote.id, content })
-                }
-                onTagsChange={(tags) =>
-                  updateNote({ id: selectedNote.id, tags })
-                }
-                aiLoading={aiLoading}
-                onSuggestTags={handleSuggestTags}
-                onGrammarCheck={handleGrammarCheck}
-                onGenerateSummary={handleGenerateSummary}
-                onGlossaryHighlight={handleGlossaryHighlight}
-                glossaryTerms={glossaryTerms}
-                onClearGlossaryTerms={clearGlossaryTerms}
-              />
-            )}
+              <>
+                <AppHeader
+                  selectedNote={selectedNote}
+                  updateNote={updateNote}
+                  onToggleDrawMode={handleToggleDrawMode}
+                  isDrawMode={isDrawMode}
+                  glossaryTerms={glossaryTerms}
+                  unlockedContent={selectedNote ? unlockedContents[selectedNote.id] ?? null : null}
+                  setUnlockedContent={setUnlockedContent}
+                  forceShowPasswordModal={forceShowPassword}
+                />
 
-            {selectedNote.summary && <SummaryBox summary={selectedNote.summary} />}
+                {isDrawMode ? (
+                  <DrawCanvas
+                    onSave={(dataUrl: string) => {
+                      console.log('Canvas saved:', dataUrl);
+                      // Here you could insert the drawing into the editor
+                      // or save it as an attachment
+                    }}
+                    onCancel={() => setShowDrawingCanvas(false)}
+                  />
+                ) : (
+                  <NoteEditor
+                    title={selectedNote.title}
+                    content={selectedCurrentContent}
+                    tags={selectedNote.tags || []}
+                    passwordProtected={!!selectedNote.passwordProtected}
+                    isUnlocked={isSelectedUnlocked}
+                    onTitleChange={(title) => updateNote({ id: selectedNote.id, title })}
+                    onContentChange={(content) => {
+                      // If the note is password-protected and unlocked, keep changes in-memory
+                      // so plaintext isn't written to IndexedDB. Otherwise persist.
+                      if (selectedNote.passwordProtected && isSelectedUnlocked) {
+                        setUnlockedContent(selectedNote.id, content);
+                      } else {
+                        updateNote({ id: selectedNote.id, content });
+                      }
+                    }}
+                    onTagsChange={(tags) => updateNote({ id: selectedNote.id, tags })}
+                    aiLoading={aiLoading}
+                    onSuggestTags={handleSuggestTags}
+                    onGrammarCheck={handleGrammarCheck}
+                    onGenerateSummary={handleGenerateSummary}
+                    onGlossaryHighlight={handleGlossaryHighlight}
+                    glossaryTerms={glossaryTerms}
+                    onClearGlossaryTerms={clearGlossaryTerms}
+                  />
+                )}
+
+                {selectedNote.summary && <SummaryBox summary={selectedNote.summary} />}
+              </>
+            )}
           </div>
         ) : (
           <div className="flex-grow flex flex-col items-center justify-center text-slate-500 p-6 text-center">

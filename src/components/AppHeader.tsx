@@ -16,6 +16,9 @@ import PasswordModal from "@/components/PasswordModal";
 import { useNotes } from "@/hooks/useNotes";
 import { Note } from "@/types";
 import { useAI } from "@/hooks/useAI";
+import AIFallbackBanner from './AIFallbackBanner';
+import AIToolsPanel from './AIToolsPanel';
+
 
 interface AppHeaderProps {
     selectedNote: Note;
@@ -23,6 +26,9 @@ interface AppHeaderProps {
     onToggleDrawMode: () => void;
     isDrawMode: boolean;
     glossaryTerms: string[];
+    unlockedContent?: string | null;
+    setUnlockedContent?: (noteId: string, content: string | null) => void;
+    forceShowPasswordModal?: boolean;
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({
@@ -31,6 +37,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     onToggleDrawMode,
     isDrawMode,
     glossaryTerms,
+    unlockedContent,
+    setUnlockedContent,
+    forceShowPasswordModal,
 }) => {
     const { encryptNote, decryptNote } = useNotes();
     const [passwordModal, setPasswordModal] = useState(false);
@@ -41,6 +50,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     const [grammarResults, setGrammarResults] = useState<string | null>(null);
     const [readabilityResults, setReadabilityResults] = useState<string | null>(null);
     const { aiLoading, generateSummary, suggestTags, checkGrammar, highlightGlossary, checkReadability } = useAI();
+    // previously used for intermediate decrypted content; now derive from props
+    const [aiFallbackNotice, setAiFallbackNotice] = useState<string | null>(null);
+
+    // unlocked UI is driven by `unlockedContent` prop (in-memory decrypted content)
 
     // Clear AI results when switching notes
     useEffect(() => {
@@ -48,6 +61,38 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         setReadabilityResults(null);
         setAiToolsOpen(false);
     }, [selectedNote.id]);
+
+
+    useEffect(() => {
+        // If the note is password protected and not already unlocked in-memory,
+        // prompt for password when this component first receives the note OR when
+        // the parent explicitly requests it via forceShowPasswordModal.
+        if ((selectedNote.passwordProtected && !unlockedContent) || forceShowPasswordModal) {
+            if (selectedNote.passwordProtected && !unlockedContent) {
+                setPasswordModal(true);
+            } else if (forceShowPasswordModal && selectedNote.passwordProtected && !unlockedContent) {
+                setPasswordModal(true);
+            }
+        }
+    }, [selectedNote.id]);
+
+    // Listen for AI fallback events dispatched from useAI
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail: any = (e as CustomEvent).detail || {};
+            const modelUsed = detail.modelUsed || 'local-fallback';
+            // Build a richer message when attemptedModels are provided
+            let message = `AI backend used local fallback (${modelUsed}). Results may be approximate.`;
+            if (detail.attemptedModels && Array.isArray(detail.attemptedModels) && detail.attemptedModels.length > 0) {
+                const attempted = detail.attemptedModels.map((m: any) => `${m.model}${m.ok ? '' : ' (failed)'}`).join(', ');
+                message = `AI backend used local fallback (${modelUsed}). Attempted: ${attempted}. Results may be approximate.`;
+            }
+            if (detail.task) message += ` Task: ${detail.task}.`;
+            setAiFallbackNotice(message);
+        };
+        window.addEventListener('ai:fallback', handler as EventListener);
+        return () => window.removeEventListener('ai:fallback', handler as EventListener);
+    }, []);
 
     /** -------------------------
      * Password Protect / Unlock
@@ -62,12 +107,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         try {
             const decrypted = await decryptNote(selectedNote, password);
             if (decrypted !== null) {
-                updateNote({
-                    id: selectedNote.id,
-                    content: decrypted,
-                    passwordProtected: false,
-                    encryptedContent: undefined,
-                });
+                // Keep the note marked as password protected in storage, but set
+                // unlocked content in-memory so the UI can display the plaintext.
+                if (setUnlockedContent) setUnlockedContent(selectedNote.id, decrypted);
                 setPasswordModal(false);
             } else {
                 setDecryptionError("Incorrect password");
@@ -81,36 +123,49 @@ const AppHeader: React.FC<AppHeaderProps> = ({
      * AI Tool Handlers
      * -------------------------- */
     const handleSuggestTags = async () => {
-        const tags = await suggestTags(selectedNote.content || "");
+        const content = (unlockedContent ?? selectedNote.content) || '';
+        if (!content.trim()) return;
+        const tags = await suggestTags(content);
         if (tags) {
             await updateNote({ id: selectedNote.id, tags });
         }
     };
 
     const handleGenerateSummary = async () => {
-        const summary = await generateSummary(selectedNote.content || "");
+        const content = (unlockedContent ?? selectedNote.content) || '';
+        if (!content.trim()) return;
+        const summary = await generateSummary(content);
+        console.debug('AI generateSummary result:', summary);
         if (summary) {
             await updateNote({ id: selectedNote.id, summary });
         }
     };
 
     const handleGrammarCheck = async () => {
-        const results = await checkGrammar(selectedNote.content || "");
+        const content = (unlockedContent ?? selectedNote.content) || '';
+        if (!content.trim()) return;
+        const results = await checkGrammar(content);
         if (results) {
             setGrammarResults(results);
         }
     };
 
     const handleGlossaryHighlight = async () => {
-        const terms = await highlightGlossary(selectedNote.content || "");
+        const content = (unlockedContent ?? selectedNote.content) || '';
+        if (!content.trim()) return;
+        const terms = await highlightGlossary(content);
         if (terms) {
             // Show success message to user
             alert(`Found ${terms.length} glossary terms! They are now highlighted in your note.`);
+            console.log(terms);
+
         }
     };
 
     const handleReadabilityCheck = async () => {
-        const results = await checkReadability(selectedNote.content || "");
+        const content = (unlockedContent ?? selectedNote.content) || '';
+        if (!content.trim()) return;
+        const results = await checkReadability(content);
         if (results) {
             setReadabilityResults(results);
         }
@@ -196,12 +251,22 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }
     };
 
+    // Merged content used by AI tools: prefer unlockedContent when available
+    const mergedContent = (unlockedContent ?? selectedNote.content) || '';
+    const noContent = mergedContent.trim().length === 0;
+
     return (
         <div className="flex flex-col gap-4">
             {/* Header Row */}
             <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold truncate">
                     {selectedNote.title || "Untitled"}
+                    {unlockedContent && (
+                        <span className="ml-3 inline-flex items-center gap-2 bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-semibold">
+                            <LockOpen size={12} />
+                            Unlocked
+                        </span>
+                    )}
                 </h2>
 
                 <div className="flex items-center gap-2">
@@ -244,81 +309,54 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                         <Sparkles size={18} />
                     </button>
 
+                    {/* AI Fallback Banner */}
+                    {aiFallbackNotice && (
+                        <AIFallbackBanner message={aiFallbackNotice} onDismiss={() => setAiFallbackNotice(null)} />
+                    )}
+
                     {/* Lock/Unlock Button */}
-                    <button
-                        onClick={() =>
-                            selectedNote.passwordProtected
-                                ? setPasswordModal(true)
-                                : handleEncryptNote()
-                        }
-                        className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                        title={selectedNote.passwordProtected ? "Unlock Note" : "Protect Note"}
-                    >
+                    <div className="flex items-center gap-2">
+                        {/* Primary lock/unlock action */}
                         {selectedNote.passwordProtected ? (
-                            <LockOpen size={18} />
+                            unlockedContent ? (
+                                <button
+                                    onClick={() => setUnlockedContent && setUnlockedContent(selectedNote.id, null)}
+                                    className="px-3 py-1 bg-amber-100 text-amber-900 rounded-md font-medium"
+                                >
+                                    Lock
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => setPasswordModal(true)}
+                                    className="px-3 py-1 bg-blue-600 text-white rounded-md font-medium"
+                                >
+                                    Unlock
+                                </button>
+                            )
                         ) : (
-                            <Lock size={18} />
+                            <button
+                                onClick={() => handleEncryptNote()}
+                                className="px-3 py-1 bg-slate-100 text-slate-800 rounded-md font-medium"
+                            >
+                                Protect
+                            </button>
                         )}
-                    </button>
+                    </div>
+                    {/* Theme toggle removed as requested */}
                 </div>
             </div>
 
             {/* AI Tools Panel */}
             {aiToolsOpen && (
-                <div className="bg-gradient-to-r from-blue-50/80 to-purple-50/80 border border-blue-200/40 rounded-2xl p-4 backdrop-blur-sm">
-                    <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                        <Sparkles size={22} className="text-blue-600" />
-                        AI-Powered Tools
-                    </h3>
-
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                        <button
-                            onClick={handleSuggestTags}
-                            disabled={aiLoading}
-                            className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg text-xs md:text-sm"
-                        >
-                            <Sparkles size={16} />
-                            Suggest Tags
-                        </button>
-                        <button
-                            onClick={handleGrammarCheck}
-                            disabled={aiLoading}
-                            className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg text-xs md:text-sm"
-                        >
-                            <Palette size={16} />
-                            Check Grammar
-                        </button>
-                        <button
-                            onClick={handleReadabilityCheck}
-                            disabled={aiLoading}
-                            className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg text-xs md:text-sm"
-                        >
-                            <Eye size={16} />
-                            Readability
-                        </button>
-                        <button
-                            onClick={handleGenerateSummary}
-                            disabled={aiLoading}
-                            className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg text-xs md:text-sm"
-                        >
-                            <BookOpen size={16} />
-                            Summarize
-                        </button>
-                        <button
-                            onClick={handleGlossaryHighlight}
-                            disabled={aiLoading}
-                            className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-400 to-orange-500 text-amber-900 rounded-lg text-xs md:text-sm relative"
-                        >
-                            <Sparkles size={16} />
-                            Glossary
-                            {glossaryTerms && glossaryTerms.length > 0 && (
-                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                                    {glossaryTerms.length}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-                </div>
+                <AIToolsPanel
+                    onSuggestTags={handleSuggestTags}
+                    onGrammarCheck={handleGrammarCheck}
+                    onReadability={handleReadabilityCheck}
+                    onSummarize={handleGenerateSummary}
+                    onGlossary={handleGlossaryHighlight}
+                    disabled={aiLoading || noContent}
+                    glossaryCount={glossaryTerms?.length || 0}
+                />
             )}
 
             {/* Grammar Check Results */}

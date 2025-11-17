@@ -1,65 +1,104 @@
-// Correct File Location: src/app/api/ai/route.ts
-"use server"
-import { NextRequest, NextResponse } from 'next/server';
-import Groq from 'groq-sdk';
+// Simplified SDK-first route with HTTP fallback for diagnostics.
+"use server";
 
-// Initialize the Groq client
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+import { NextRequest, NextResponse } from "next/server";
 
-// Define the structure of the request body
-interface GroqApiRequestBody {
-  task: string;
-  text: string;
-  tone?: 'concise' | 'formal' | 'casual' | 'professional';
+// Accept either GEMINI_API_KEY or GOOGLE_GEMINI_API_KEY for flexibility
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GOOGLE_GEMINI_MODEL || "gemini-2.5-flash";
+
+function buildPrompt(task: string, text: string, tone?: string) {
+  switch (task) {
+    case "summarize":
+      return `Summarize this in 2 lines:\n${text}`;
+    default:
+      return text;
+  }
 }
 
-// Enhanced task prompts with better instructions
-const taskPrompts: { [key: string]: (text: string, tone?: any) => string } = {
-  summarize: (text) => `Summarize the following text in 1-2 concise lines, capturing the main points:\n\n${text}`,
-  
-  getTags: (text) => `Analyze the following text and generate 3-5 relevant keyword tags that best represent the content. Focus on main topics, concepts, and themes. Respond with only a comma-separated list without numbering or additional text.\n\nText: "${text}"`,
-  
-  glossaryHighlight: (text) => `Identify 5-8 key terms, concepts, or technical words from the following text that would be valuable in a glossary. These should be terms that readers might want to look up or understand better. Respond with only a comma-separated list of the terms.\n\nText: "${text}"`,
-  
-  grammarCheck: (text) => `Analyze the following text for grammar, spelling, punctuation, and readability issues. For each error found, provide the correction in this format: "ERROR: [original text] → CORRECTION: [corrected text]". If no errors are found, respond with "No errors detected." Focus on common issues like subject-verb agreement, tense consistency, punctuation, and spelling.\n\nText: "${text}"`,
-  
-  readabilityCheck: (text) => `Analyze the readability of the following text. Identify any sentences that are too long, complex, or hard to understand. For each readability issue, suggest a simpler alternative. Also provide a brief readability score (1-10, where 10 is very easy to read). Respond in this format: "READABILITY SCORE: [score]/10. ISSUES: [list issues with suggestions]".\n\nText: "${text}"`,
-  
-  rewrite: (text, tone) => `Rewrite the following text in a ${tone} tone while maintaining the original meaning and key information. Respond with only the rewritten text.\n\nText: "${text}"`,
-};
+function bodiesForGenerateContent(promptText: string) {
+  const baseConfig = { temperature: 0.3, maxOutputTokens: 512 };
+  // Use the correct Gemini API structure with parts array
+  return [
+    { contents: [{ parts: [{ text: promptText }] }], generationConfig: baseConfig },
+    { contents: [{ parts: [{ text: promptText }] }] },
+  ];
+}
 
-// This function handles POST requests to /api/ai
-export async function POST(request: NextRequest) {
+const GEMINI_BASES = [
+  `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}`,
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}`,
+];
+
+export async function POST(req: NextRequest) {
   try {
-    // Parse the request body
-    const { task, text, tone } = (await request.json()) as GroqApiRequestBody;
+    const { task = "summarize", text, tone, model: requestedModel } = await req.json();
 
-    // Validate the input
-    if (!task || !text || !taskPrompts[task]) {
-      return NextResponse.json({ error: 'Invalid task or missing text.' }, { status: 400 });
+    if (!GEMINI_API_KEY) {
+      return NextResponse.json({ error: "Missing GEMINI_API_KEY" }, { status: 500 });
     }
 
-    // Generate the prompt based on the task
-    const promptContent = taskPrompts[task](text, tone);
+    if (!text || typeof text !== "string") {
+      return NextResponse.json({ error: "Missing 'text' in request body" }, { status: 400 });
+    }
 
-    // Call the Groq API
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [{ role: 'user', content: promptContent }],
-      model: 'llama3-8b-8192',
-      temperature: 0.3, // Lower temperature for more consistent results
-      max_tokens: 1000,
-    });
+    const prompt = buildPrompt(task, text, tone);
+    const modelToUse = requestedModel || GEMINI_MODEL;
 
-    const result = chatCompletion.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
-    
-    // Send the successful response back to the client
-    return NextResponse.json({ result });
+    // Try SDK via runtime require (uses local wrapper to avoid build-time bundling)
+    try {
+      // `route.ts` is at `src/app/api/ai/route.ts` so `src/lib` is three levels up
+      const { getGeminiSDK } = await import("../../../lib/getGeminiSdk");
+      const SDK = getGeminiSDK();
+      if (SDK) {
+        try {
+          const client = new SDK({ apiKey: GEMINI_API_KEY });
+          const sdkResp = await client.models.generateContent({ 
+            model: modelToUse, 
+            contents: [{ parts: [{ text: prompt }] }]
+          });
+          const out = sdkResp?.text ?? sdkResp?.output?.[0]?.content?.[0]?.text ?? sdkResp?.output?.[0]?.text ?? null;
+          if (out) return NextResponse.json({ result: out, modelUsed: modelToUse });
+        } catch (e: any) {
+          console.error("GenAI SDK call failed, falling back to HTTP:", e?.message ?? String(e));
+        }
+      }
+    } catch (e) {
+      // wrapper import failed; fall back to HTTP
+    }
 
-  } catch (error) {
-    console.error('Groq API Error:', error);
-    // Return an error response
-    return NextResponse.json({ error: 'Failed to communicate with Groq API.' }, { status: 500 });
+    // HTTP fallback: try v1 and v1beta endpoints with canonical bodies
+    const attemptedEndpoints: Array<any> = [];
+    for (const base of GEMINI_BASES) {
+      const url = `${base}:generateContent?key=${GEMINI_API_KEY}`;
+      const candidateBodies = bodiesForGenerateContent(prompt);
+      for (const triedBody of candidateBodies) {
+        try {
+          const bodyStr = JSON.stringify(triedBody);
+          if (bodyStr.length > 19000) {
+            attemptedEndpoints.push({ url, triedBody, skipped: true, reason: 'payload too large' });
+            continue;
+          }
+          const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr });
+          const textBody = await resp.text().catch(() => "");
+          let jsonBody: any = null;
+          try { jsonBody = textBody ? JSON.parse(textBody) : null; } catch (_) { jsonBody = null; }
+          const errorMessage = jsonBody?.error?.message ?? null;
+          attemptedEndpoints.push({ url, status: resp.status, triedBody, body: jsonBody ?? textBody, errorMessage });
+          if (!resp.ok) continue;
+          const candidateOutput = jsonBody?.candidates?.[0]?.content?.parts?.[0]?.text ?? jsonBody?.text ?? null;
+          if (candidateOutput) return NextResponse.json({ result: candidateOutput, modelUsed: GEMINI_MODEL, attemptedEndpoints });
+        } catch (e: any) {
+          attemptedEndpoints.push({ url, error: String(e) });
+        }
+      }
+    }
+
+    // All attempts failed: return a short fallback and diagnostics
+    const fallback = text.split(/[\.\n]/)[0].slice(0, 180) || text.slice(0, 180);
+    return NextResponse.json({ result: fallback, fallbackUsed: true, attemptedEndpoints });
+  } catch (err: any) {
+    console.error('AI SERVER ERROR:', err);
+    return NextResponse.json({ error: err?.message ?? String(err) }, { status: 500 });
   }
 }
