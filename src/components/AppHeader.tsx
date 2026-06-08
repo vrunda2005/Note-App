@@ -1,31 +1,26 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
+import { Note } from '@/types';
+import { useNotes } from '@/hooks/useNotes';
 import {
+    Share2,
+    Download,
     Lock,
     LockOpen,
     Sparkles,
-    Palette,
-    BookOpen,
     PenTool,
     ArrowLeft,
-    Download,
-    Share2,
-    FileText,
-    Eye,
-} from "lucide-react";
-import PasswordModal from "@/components/PasswordModal";
-import { useNotes } from "@/hooks/useNotes";
-import { Note } from "@/types";
-import { useAI } from "@/hooks/useAI";
+    Clock
+} from 'lucide-react';
+import PasswordModal from './PasswordModal';
 import AIFallbackBanner from './AIFallbackBanner';
-import AIToolsPanel from './AIToolsPanel';
-
 
 interface AppHeaderProps {
     selectedNote: Note;
     updateNote: (note: Partial<Note> & { id: string }) => Promise<void>;
     onToggleDrawMode: () => void;
     isDrawMode: boolean;
-    glossaryTerms: string[];
+    isAiSidebarOpen: boolean;
+    onToggleAiSidebar: () => void;
     unlockedContent?: string | null;
     setUnlockedContent?: (noteId: string, content: string | null) => void;
     forceShowPasswordModal?: boolean;
@@ -36,32 +31,18 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     updateNote,
     onToggleDrawMode,
     isDrawMode,
-    glossaryTerms,
+    isAiSidebarOpen,
+    onToggleAiSidebar,
     unlockedContent,
     setUnlockedContent,
     forceShowPasswordModal,
 }) => {
-    const { encryptNote, decryptNote } = useNotes();
+    const { encryptNote, decryptNote, shareNote: shareNoteWithEmail } = useNotes();
     const [passwordModal, setPasswordModal] = useState(false);
     const [decryptionError, setDecryptionError] = useState("");
     const [isDecrypting, setIsDecrypting] = useState(false);
-    const [aiToolsOpen, setAiToolsOpen] = useState(false);
     const [shareModalOpen, setShareModalOpen] = useState(false);
-    const [grammarResults, setGrammarResults] = useState<string | null>(null);
-    const [readabilityResults, setReadabilityResults] = useState<string | null>(null);
-    const { aiLoading, generateSummary, suggestTags, checkGrammar, highlightGlossary, checkReadability } = useAI();
-    // previously used for intermediate decrypted content; now derive from props
     const [aiFallbackNotice, setAiFallbackNotice] = useState<string | null>(null);
-
-    // unlocked UI is driven by `unlockedContent` prop (in-memory decrypted content)
-
-    // Clear AI results when switching notes
-    useEffect(() => {
-        setGrammarResults(null);
-        setReadabilityResults(null);
-        setAiToolsOpen(false);
-    }, [selectedNote.id]);
-
 
     useEffect(() => {
         // If the note is password protected and not already unlocked in-memory,
@@ -69,8 +50,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         // the parent explicitly requests it via forceShowPasswordModal.
         if ((selectedNote.passwordProtected && !unlockedContent) || forceShowPasswordModal) {
             if (selectedNote.passwordProtected && !unlockedContent) {
-                setPasswordModal(true);
-            } else if (forceShowPasswordModal && selectedNote.passwordProtected && !unlockedContent) {
                 setPasswordModal(true);
             }
         }
@@ -116,58 +95,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             }
         } finally {
             setIsDecrypting(false);
-        }
-    };
-
-    /** -------------------------
-     * AI Tool Handlers
-     * -------------------------- */
-    const handleSuggestTags = async () => {
-        const content = (unlockedContent ?? selectedNote.content) || '';
-        if (!content.trim()) return;
-        const tags = await suggestTags(content);
-        if (tags) {
-            await updateNote({ id: selectedNote.id, tags });
-        }
-    };
-
-    const handleGenerateSummary = async () => {
-        const content = (unlockedContent ?? selectedNote.content) || '';
-        if (!content.trim()) return;
-        const summary = await generateSummary(content);
-        console.debug('AI generateSummary result:', summary);
-        if (summary) {
-            await updateNote({ id: selectedNote.id, summary });
-        }
-    };
-
-    const handleGrammarCheck = async () => {
-        const content = (unlockedContent ?? selectedNote.content) || '';
-        if (!content.trim()) return;
-        const results = await checkGrammar(content);
-        if (results) {
-            setGrammarResults(results);
-        }
-    };
-
-    const handleGlossaryHighlight = async () => {
-        const content = (unlockedContent ?? selectedNote.content) || '';
-        if (!content.trim()) return;
-        const terms = await highlightGlossary(content);
-        if (terms) {
-            // Show success message to user
-            alert(`Found ${terms.length} glossary terms! They are now highlighted in your note.`);
-            console.log(terms);
-
-        }
-    };
-
-    const handleReadabilityCheck = async () => {
-        const content = (unlockedContent ?? selectedNote.content) || '';
-        if (!content.trim()) return;
-        const results = await checkReadability(content);
-        if (results) {
-            setReadabilityResults(results);
         }
     };
 
@@ -222,23 +149,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }
     };
 
-    const shareNote = async () => {
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: selectedNote.title || 'Note',
-                    text: selectedNote.content?.replace(/<[^>]*>/g, '').substring(0, 100) + '...',
-                    url: window.location.href,
-                });
-            } catch (error) {
-                console.log('Share cancelled');
-            }
-        } else {
-            // Fallback for browsers that don't support Web Share API
-            setShareModalOpen(true);
-        }
-    };
-
     const copyToClipboard = async () => {
         try {
             const noteText = `${selectedNote.title || 'Untitled'}\n\n${selectedNote.content?.replace(/<[^>]*>/g, '') || ''}`;
@@ -251,179 +161,188 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }
     };
 
-    // Merged content used by AI tools: prefer unlockedContent when available
-    const mergedContent = (unlockedContent ?? selectedNote.content) || '';
-    const noContent = mergedContent.trim().length === 0;
-
     return (
-        <div className="flex flex-col gap-4">
-            {/* Header Row */}
-            <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold truncate">
-                    {selectedNote.title || "Untitled"}
-                    {unlockedContent && (
-                        <span className="ml-3 inline-flex items-center gap-2 bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-semibold">
-                            <LockOpen size={12} />
-                            Unlocked
-                        </span>
-                    )}
-                </h2>
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-40 w-full flex-shrink-0">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-3 gap-3">
+                    {/* Left: Title & Last Modified */}
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="flex flex-col min-w-0">
+                            <h2 className="text-lg font-bold text-slate-800 truncate">
+                                {selectedNote.title || "Untitled Note"}
+                            </h2>
+                            <span className="text-xs text-slate-500 flex items-center gap-1">
+                                <Clock size={12} />
+                                {selectedNote.lastModified
+                                    ? new Date(selectedNote.lastModified).toLocaleString()
+                                    : "Just now"}
+                            </span>
+                        </div>
+                    </div>
 
-                <div className="flex items-center gap-2">
-                    {/* PDF Export */}
-                    <button
-                        onClick={exportToPDF}
-                        className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                        title="Export to PDF"
-                    >
-                        <Download size={18} />
-                    </button>
-
-                    {/* Share Note */}
-                    <button
-                        onClick={shareNote}
-                        className="p-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
-                        title="Share Note"
-                    >
-                        <Share2 size={18} />
-                    </button>
-
-                    {/* Draw Mode Toggle */}
-                    <button
-                        onClick={onToggleDrawMode}
-                        className={`p-2 rounded-lg transition ${isDrawMode
-                            ? "bg-green-500 text-white hover:bg-green-600"
-                            : "bg-slate-200 hover:bg-slate-300"
-                            }`}
-                        title={isDrawMode ? "Back to text mode" : "Switch to draw mode"}
-                    >
-                        {isDrawMode ? <ArrowLeft size={18} /> : <PenTool size={18} />}
-                    </button>
-
-                    {/* AI Tools Toggle */}
-                    <button
-                        onClick={() => setAiToolsOpen((prev) => !prev)}
-                        className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:opacity-90"
-                        title="AI Tools"
-                    >
-                        <Sparkles size={18} />
-                    </button>
-
-                    {/* AI Fallback Banner */}
-                    {aiFallbackNotice && (
-                        <AIFallbackBanner message={aiFallbackNotice} onDismiss={() => setAiFallbackNotice(null)} />
-                    )}
-
-                    {/* Lock/Unlock Button */}
-                    <div className="flex items-center gap-2">
-                        {/* Primary lock/unlock action */}
+                    {/* Right: Actions Row */}
+                    <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+                        {/* Lock/Unlock Button */}
                         {selectedNote.passwordProtected ? (
                             unlockedContent ? (
                                 <button
                                     onClick={() => setUnlockedContent && setUnlockedContent(selectedNote.id, null)}
-                                    className="px-3 py-1 bg-amber-100 text-amber-900 rounded-md font-medium"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-950 rounded-xl text-xs font-semibold border border-amber-200 transition"
                                 >
+                                    <LockOpen size={14} />
                                     Lock
                                 </button>
                             ) : (
                                 <button
                                     onClick={() => setPasswordModal(true)}
-                                    className="px-3 py-1 bg-blue-600 text-white rounded-md font-medium"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition shadow-sm"
                                 >
+                                    <Lock size={14} />
                                     Unlock
                                 </button>
                             )
                         ) : (
                             <button
                                 onClick={() => handleEncryptNote()}
-                                className="px-3 py-1 bg-slate-100 text-slate-800 rounded-md font-medium"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 transition"
                             >
+                                <Lock size={14} />
                                 Protect
                             </button>
                         )}
+
+                        {/* Draw Mode Toggle */}
+                        <button
+                            onClick={onToggleDrawMode}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition border ${isDrawMode
+                                ? "bg-emerald-500 border-emerald-500 text-white hover:bg-emerald-600"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                }`}
+                            title={isDrawMode ? "Back to text mode" : "Switch to draw mode"}
+                        >
+                            {isDrawMode ? (
+                                <>
+                                    <ArrowLeft size={14} />
+                                    Text Mode
+                                </>
+                            ) : (
+                                <>
+                                    <PenTool size={14} />
+                                    Draw Canvas
+                                </>
+                            )}
+                        </button>
+
+                        {/* Share Button */}
+                        <button
+                            onClick={() => setShareModalOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-xs font-semibold transition shadow-sm"
+                            title="Share Note"
+                        >
+                            <Share2 size={14} />
+                            Share
+                        </button>
+
+                        {/* Export PDF Button */}
+                        <button
+                            onClick={exportToPDF}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-semibold transition"
+                            title="Export to PDF"
+                        >
+                            <Download size={14} />
+                            Export PDF
+                        </button>
+
+                        {/* AI Copilot Toggle */}
+                        <button
+                            onClick={onToggleAiSidebar}
+                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${isAiSidebarOpen
+                                ? 'bg-gradient-to-r from-blue-600 to-purple-700 text-white scale-105 shadow-md'
+                                : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:opacity-90 shadow-sm'
+                                }`}
+                            title="AI Copilot"
+                        >
+                            <Sparkles size={14} />
+                            AI Copilot
+                        </button>
+
+                        {/* AI Fallback Banner */}
+                        {aiFallbackNotice && (
+                            <AIFallbackBanner message={aiFallbackNotice} onDismiss={() => setAiFallbackNotice(null)} />
+                        )}
                     </div>
-                    {/* Theme toggle removed as requested */}
                 </div>
             </div>
 
-            {/* AI Tools Panel */}
-            {aiToolsOpen && (
-                <AIToolsPanel
-                    onSuggestTags={handleSuggestTags}
-                    onGrammarCheck={handleGrammarCheck}
-                    onReadability={handleReadabilityCheck}
-                    onSummarize={handleGenerateSummary}
-                    onGlossary={handleGlossaryHighlight}
-                    disabled={aiLoading || noContent}
-                    glossaryCount={glossaryTerms?.length || 0}
-                />
-            )}
-
-            {/* Grammar Check Results */}
-            {grammarResults && (
-                <div className="bg-gradient-to-r from-violet-50/80 to-purple-50/80 border border-violet-200/40 rounded-2xl p-4 backdrop-blur-sm">
-                    <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-md font-semibold text-slate-800 flex items-center gap-2">
-                            <Palette size={20} className="text-violet-600" />
-                            Grammar & Spelling Check
-                        </h4>
-                        <button
-                            onClick={() => setGrammarResults(null)}
-                            className="text-violet-600 hover:text-violet-800 p-1 rounded"
-                        >
-                            ×
-                        </button>
-                    </div>
-                    <div className="text-sm text-slate-700 whitespace-pre-line">
-                        {grammarResults}
-                    </div>
-                </div>
-            )}
-
-            {/* Readability Check Results */}
-            {readabilityResults && (
-                <div className="bg-gradient-to-r from-amber-50/80 to-orange-50/80 border border-amber-200/40 rounded-2xl p-4 backdrop-blur-sm">
-                    <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-md font-semibold text-slate-800 flex items-center gap-2">
-                            <Eye size={20} className="text-amber-600" />
-                            Readability Analysis
-                        </h4>
-                        <button
-                            onClick={() => setReadabilityResults(null)}
-                            className="text-amber-600 hover:text-amber-800 p-1 rounded"
-                        >
-                            ×
-                        </button>
-                    </div>
-                    <div className="text-sm text-slate-700 whitespace-pre-line">
-                        {readabilityResults}
-                    </div>
-                </div>
-            )}
-
             {/* Share Modal */}
             {shareModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
+                <div
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+                    onClick={() => setShareModalOpen(false)}
+                >
+                    <div
+                        className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
                             <Share2 size={22} className="text-purple-600" />
                             Share Note
                         </h3>
-                        <p className="text-slate-600 mb-4">
-                            Copy this note to your clipboard to share it with others.
-                        </p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={copyToClipboard}
-                                className="flex-1 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
-                            >
-                                Copy to Clipboard
-                            </button>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Share with email</label>
+                                <form
+                                    onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        const email = (e.target as any).email.value;
+                                        if (email) {
+                                            const success = await shareNoteWithEmail(selectedNote.id, email);
+                                            if (success) {
+                                                alert('Note shared successfully!');
+                                                (e.target as any).reset();
+                                            } else {
+                                                alert('Failed to share note');
+                                            }
+                                        }
+                                    }}
+                                    className="flex gap-2"
+                                >
+                                    <input
+                                        name="email"
+                                        type="email"
+                                        placeholder="user@example.com"
+                                        className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                                        required
+                                    />
+                                    <button
+                                        type="submit"
+                                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                                    >
+                                        Share
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div className="border-t pt-4">
+                                <p className="text-sm text-slate-600 mb-2">
+                                    Or copy content to clipboard:
+                                </p>
+                                <button
+                                    onClick={copyToClipboard}
+                                    className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium border border-slate-200"
+                                >
+                                    Copy to Clipboard
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end">
                             <button
                                 onClick={() => setShareModalOpen(false)}
-                                className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors"
+                                className="px-4 py-2 text-slate-500 hover:text-slate-700 font-medium"
                             >
-                                Cancel
+                                Close
                             </button>
                         </div>
                     </div>
@@ -439,7 +358,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                     onCancel={() => setPasswordModal(false)}
                 />
             )}
-        </div>
+        </header>
     );
 };
 

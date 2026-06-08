@@ -42,9 +42,17 @@ const NotesSidebar: React.FC<Props> = ({
     });
 
     const stripHTMLAndDecode = (html: string) => {
-        const tempDiv = document.createElement("div");
-        tempDiv.innerHTML = html;
-        return tempDiv.textContent || tempDiv.innerText || "";
+        if (!html) return "";
+        // Simple safe strip regex that works on both client and server (no document API required)
+        const stripped = html.replace(/<[^>]*>/g, "");
+        // Basic entity decoder for common characters
+        return stripped
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&quot;/g, '"')
+            .replace(/&#039;/g, "'")
+            .replace(/&nbsp;/g, " ");
     };
 
 

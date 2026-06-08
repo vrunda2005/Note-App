@@ -57,14 +57,18 @@ const DrawCanvas: React.FC<DrawCanvasProps> = ({ onSave, onCancel }) => {
     const draw = (e: React.MouseEvent) => {
         if (!drawing || !context) return;
         const rect = canvasRef.current!.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
         if (tool === 'eraser') {
             context.save();
             context.globalCompositeOperation = 'destination-out';
-            context.arc(e.clientX - rect.left, e.clientY - rect.top, brushSize / 2, 0, Math.PI * 2);
+            context.beginPath();
+            context.arc(x, y, brushSize, 0, Math.PI * 2);
             context.fill();
             context.restore();
         } else {
-            context.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+            context.lineTo(x, y);
             context.stroke();
         }
     };
@@ -88,7 +92,7 @@ const DrawCanvas: React.FC<DrawCanvasProps> = ({ onSave, onCancel }) => {
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6 max-w-[900px] mx-auto">
+        <div className="bg-gradient-to-br from-white to-slate-50/50 rounded-2xl shadow-lg border border-slate-200/60 p-6 max-w-[900px] mx-auto relative">
             {/* Toolbar */}
             <div className="flex items-center justify-between mb-6 p-4 bg-gradient-to-r from-slate-50 to-blue-50/30 rounded-xl border border-slate-200/40">
                 <div className="flex items-center gap-4">
@@ -97,8 +101,8 @@ const DrawCanvas: React.FC<DrawCanvasProps> = ({ onSave, onCancel }) => {
                         <button
                             onClick={() => setTool('pen')}
                             className={`p-3 rounded-xl border-2 transition-all duration-200 ${tool === 'pen'
-                                    ? 'border-blue-500 bg-blue-100/80 text-blue-600 shadow-md'
-                                    : 'border-slate-200/60 text-slate-600 hover:border-slate-300/60 hover:bg-slate-100/60'
+                                ? 'border-blue-500 bg-blue-100/80 text-blue-600 shadow-md'
+                                : 'border-slate-200/60 text-slate-600 hover:border-slate-300/60 hover:bg-slate-100/60'
                                 }`}
                             title="Pen Tool"
                         >
@@ -107,8 +111,8 @@ const DrawCanvas: React.FC<DrawCanvasProps> = ({ onSave, onCancel }) => {
                         <button
                             onClick={() => setTool('eraser')}
                             className={`p-3 rounded-xl border-2 transition-all duration-200 ${tool === 'eraser'
-                                    ? 'border-red-500 bg-red-100/80 text-red-600 shadow-md'
-                                    : 'border-slate-200/60 text-slate-600 hover:border-slate-300/60 hover:bg-slate-100/60'
+                                ? 'border-red-500 bg-red-100/80 text-red-600 shadow-md'
+                                : 'border-slate-200/60 text-slate-600 hover:border-slate-300/60 hover:bg-slate-100/60'
                                 }`}
                             title="Eraser Tool"
                         >
@@ -145,8 +149,8 @@ const DrawCanvas: React.FC<DrawCanvasProps> = ({ onSave, onCancel }) => {
                                     key={color}
                                     onClick={() => setBrushColor(color)}
                                     className={`w-6 h-6 rounded-lg border-2 transition-all duration-200 hover:scale-110 ${brushColor === color
-                                            ? 'border-slate-800 shadow-lg'
-                                            : 'border-slate-300/60 hover:border-slate-400/60'
+                                        ? 'border-slate-800 shadow-lg'
+                                        : 'border-slate-300/60 hover:border-slate-400/60'
                                         }`}
                                     style={{ backgroundColor: color }}
                                     title={color}
@@ -170,7 +174,7 @@ const DrawCanvas: React.FC<DrawCanvasProps> = ({ onSave, onCancel }) => {
                     {onCancel && (
                         <button
                             onClick={onCancel}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-slate-200/80 text-slate-700 rounded-xl hover:bg-slate-300/80 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-all duration-200 shadow-sm hover:shadow-md"
                             title="Cancel"
                         >
                             <X size={18} />
@@ -191,33 +195,19 @@ const DrawCanvas: React.FC<DrawCanvasProps> = ({ onSave, onCancel }) => {
 
             {/* Canvas */}
             <div className="flex justify-center">
-                <div className="relative">
+                <div className="relative bg-white rounded-xl shadow-inner p-2">
                     <canvas
                         ref={canvasRef}
-                        className="border-2 border-slate-200/60 rounded-xl cursor-crosshair shadow-lg hover:shadow-xl transition-shadow duration-200"
+                        className="border-2 border-slate-200/60 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-200"
                         onMouseDown={startDrawing}
                         onMouseMove={draw}
                         onMouseUp={stopDrawing}
                         onMouseLeave={stopDrawing}
                         style={{
-                            cursor: tool === 'eraser' ? 'crosshair' : 'crosshair',
-                            filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'
+                            cursor: tool === 'eraser' ? 'not-allowed' : 'crosshair',
+                            backgroundColor: '#ffffff'
                         }}
                     />
-
-                    {/* Drawing Cursor Indicator */}
-                    {drawing && (
-                        <div
-                            className="absolute pointer-events-none rounded-full border-2 border-slate-400 bg-slate-200/20"
-                            style={{
-                                width: brushSize,
-                                height: brushSize,
-                                left: 0,
-                                top: 0,
-                                transform: 'translate(-50%, -50%)'
-                            }}
-                        />
-                    )}
                 </div>
             </div>
 

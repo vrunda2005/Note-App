@@ -3,7 +3,7 @@ import { type Note } from '@/types';
 
 const DB_NAME = 'notes-app-db';
 const STORE_NAME = 'notes';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 
 /**

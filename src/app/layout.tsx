@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import React, { Suspense } from "react";
+import { AuthProvider } from "@/context/AuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,15 +31,17 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ErrorBoundary>
-          <Suspense
-            fallback={
-              <div className="flex items-center justify-center min-h-screen">
-                <p className="text-gray-600">Loading...</p>
-              </div>
-            }
-          >
-            {children}
-          </Suspense>
+          <AuthProvider>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center min-h-screen">
+                  <p className="text-gray-600">Loading...</p>
+                </div>
+              }
+            >
+              {children}
+            </Suspense>
+          </AuthProvider>
         </ErrorBoundary>
       </body>
     </html>

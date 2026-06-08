@@ -1,4 +1,6 @@
 // src/hooks/useAI.ts
+// Low-level AI API hook - handles communication with backend
+// For component-level AI features, use useAIFeatures.ts instead
 
 import { useState } from 'react';
 
@@ -8,7 +10,10 @@ interface AIRequest {
   text: string;
 }
 
-// Reusable function to call the backend API
+/**
+ * Reusable function to call the backend AI API
+ * Handles errors and dispatches fallback events when needed
+ */
 const callMyBackend = async (body: AIRequest): Promise<any> => {
   try {
     const response = await fetch('/api/ai', { // Use the correct relative URL
@@ -48,9 +53,23 @@ const callMyBackend = async (body: AIRequest): Promise<any> => {
   }
 };
 
+/**
+ * Low-level hook for AI operations
+ * 
+ * This hook provides direct access to AI API calls.
+ * For most use cases, prefer using useAIFeatures.ts which provides
+ * a higher-level abstraction with better error handling.
+ * 
+ * @returns Object containing AI functions and loading state
+ */
 export const useAI = () => {
   const [aiLoading, setAiLoading] = useState(false);
 
+  /**
+   * Generate a summary of the provided text
+   * @param text - The text content to summarize
+   * @returns Summary string or null if failed
+   */
   const generateSummary = async (text: string): Promise<string | null> => {
     setAiLoading(true);
     try {
@@ -64,6 +83,11 @@ export const useAI = () => {
     }
   };
 
+  /**
+   * Suggest relevant tags for the provided text
+   * @param text - The text content to analyze
+   * @returns Array of suggested tags or null if failed
+   */
   const suggestTags = async (text: string): Promise<string[] | null> => {
     setAiLoading(true);
     try {
@@ -79,6 +103,11 @@ export const useAI = () => {
     }
   };
 
+  /**
+   * Check grammar and provide corrections
+   * @param text - The text content to check
+   * @returns Grammar check results or null if failed
+   */
   const checkGrammar = async (text: string): Promise<string | null> => {
     setAiLoading(true);
     try {
@@ -92,6 +121,11 @@ export const useAI = () => {
     }
   };
 
+  /**
+   * Highlight important glossary terms in the text
+   * @param text - The text content to analyze
+   * @returns Array of glossary terms or null if failed
+   */
   const highlightGlossary = async (text: string): Promise<string[] | null> => {
     setAiLoading(true);
     try {
@@ -106,6 +140,11 @@ export const useAI = () => {
     }
   };
 
+  /**
+   * Check readability and provide insights
+   * @param text - The text content to analyze
+   * @returns Readability analysis or null if failed
+   */
   const checkReadability = async (text: string): Promise<string | null> => {
     setAiLoading(true);
     try {

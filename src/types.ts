@@ -8,4 +8,6 @@ export interface Note {
   passwordProtected: boolean;
   encryptedContent?: string; //  if passwordProtected = true
   lastModified: number;
+  userId: string;
+  sharedWith: string[]; // List of user emails
 }

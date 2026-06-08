@@ -27,6 +27,8 @@ export default function RichTextEditor({
     const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
     // Flag used to ignore internal DOM updates when reflecting content prop -> innerHTML
     const isInternalUpdate = useRef(false);
+    // Keep track of the last content value emitted to the parent to prevent typing lags
+    const lastEmittedValue = useRef(content);
 
 
     const highlightColors = [
@@ -62,6 +64,19 @@ export default function RichTextEditor({
     // Enhanced glossary highlighting with tooltips
     useEffect(() => {
         if (!ref.current) return;
+
+        // Skip updating innerHTML if the content matches what the user is typing
+        const contentHasChanged = content !== lastEmittedValue.current;
+        const currentCleanHTML = ref.current.innerHTML
+            .replace(/<span class="[^"]*" data-glossary-term="[^"]*" data-term-index="[^"]*">([^<]*)<\/span>/gi, '$1')
+            .replace(/<mark class="prop-highlight">([^<]*)<\/mark>/gi, '$1');
+        
+        const needsUpdate = contentHasChanged || currentCleanHTML !== content;
+
+        if (!needsUpdate) {
+            return;
+        }
+
         if (!highlightTerms.length) {
             if (ref.current.innerHTML !== content) {
                 ref.current.innerHTML = content;
@@ -198,6 +213,7 @@ export default function RichTextEditor({
                 .replace(/<span class="[^"]*" data-glossary-term="[^"]*" data-term-index="[^"]*">([^<]*)<\/span>/gi, '$1')
                 // unwrap our highlight wrapper
                 .replace(/<mark class="prop-highlight">([^<]*)<\/mark>/gi, '$1');
+            lastEmittedValue.current = cleanContent;
             onChange(cleanContent);
 
             // Restore cursor position after content update
@@ -309,6 +325,52 @@ export default function RichTextEditor({
         setShowHighlightMenu(false);
     };
 
+    const insertImage = (dataUrl: string) => {
+        restoreSelection();
+        const sel = window.getSelection();
+        let imageInserted = false;
+        
+        if (sel && sel.rangeCount > 0) {
+            try {
+                const range = sel.getRangeAt(0);
+                if (ref.current && ref.current.contains(range.commonAncestorContainer)) {
+                    range.deleteContents();
+                    
+                    const img = document.createElement('img');
+                    img.src = dataUrl;
+                    img.alt = 'Drawing';
+                    img.className = 'max-w-full my-4 rounded-xl border border-slate-200 shadow-sm';
+                    
+                    range.insertNode(img);
+                    
+                    const newRange = document.createRange();
+                    newRange.setStartAfter(img);
+                    newRange.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(newRange);
+                    imageInserted = true;
+                }
+            } catch (error) {
+                console.error('Failed to insert image at range:', error);
+            }
+        }
+        
+        if (!imageInserted && ref.current) {
+            const imgHtml = `<p><img src="${dataUrl}" alt="Drawing" class="max-w-full my-4 rounded-xl border border-slate-200 shadow-sm" /></p>`;
+            ref.current.innerHTML += imgHtml;
+        }
+        
+        if (ref.current) {
+            const currentHTML = ref.current.innerHTML;
+            const cleanContent = currentHTML
+                .replace(/<span class="[^"]*" data-glossary-term="[^"]*" data-term-index="[^"]*">([^<]*)<\/span>/gi, '$1')
+                .replace(/<mark class="prop-highlight">([^<]*)<\/mark>/gi, '$1');
+            lastEmittedValue.current = cleanContent;
+            onChange(cleanContent);
+        }
+        setShowDrawingCanvas(false);
+    };
+
     // Exec command wrapper
     const exec = (cmd: string, val?: string) => {
         if (readOnly) return;
@@ -386,11 +448,7 @@ export default function RichTextEditor({
                         </button>
                     </div>
                     <DrawCanvas
-                        onSave={(dataUrl: string) => {
-                            console.log('Canvas saved:', dataUrl);
-                            // Here you could insert the drawing into the editor
-                            // or save it as an attachment
-                        }}
+                        onSave={insertImage}
                         onCancel={() => setShowDrawingCanvas(false)}
                     />
                 </div>

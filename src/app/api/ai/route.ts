@@ -10,7 +10,24 @@ const GEMINI_MODEL = process.env.GOOGLE_GEMINI_MODEL || "gemini-2.5-flash";
 function buildPrompt(task: string, text: string, tone?: string) {
   switch (task) {
     case "summarize":
-      return `Summarize this in 2 lines:\n${text}`;
+      return `Summarize this text in 2-3 concise lines:\n\n${text}`;
+    
+    case "getTags":
+      return `Analyze the following text and suggest 3-5 relevant tags or keywords that categorize this content. Return only the tags as a comma-separated list without explanations.\n\nText:\n${text}`;
+    
+    case "grammarCheck":
+      return `Check the following text for grammar, spelling, and punctuation errors. Provide corrections and suggestions in a clear, concise format. If there are no errors, say "No grammar issues found."\n\nText:\n${text}`;
+    
+    case "glossaryHighlight":
+      return `Identify and list important technical terms, concepts, or glossary-worthy words in the following text. Return only the terms as a comma-separated list without explanations.\n\nText:\n${text}`;
+    
+    case "readabilityCheck":
+      return `Analyze the readability of the following text. Provide feedback on:\n1. Reading level and complexity\n2. Sentence structure\n3. Suggestions for improvement\n\nText:\n${text}`;
+    
+    case "rewrite":
+      const toneInstruction = tone === 'formal' ? 'formal and professional' : 'concise and clear';
+      return `Rewrite the following text in a ${toneInstruction} tone while maintaining the original meaning:\n\nText:\n${text}`;
+    
     default:
       return text;
   }

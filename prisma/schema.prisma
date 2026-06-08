@@ -1,0 +1,32 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  notes        Note[]   @relation("UserNotes")
+}
+
+model Note {
+  id                String   @id @default(uuid())
+  title             String
+  content           String   @db.Text
+  pinned            Boolean  @default(false)
+  tags              String[]
+  summary           String   @default("")
+  passwordProtected Boolean  @default(false)
+  encryptedContent  String?  @db.Text
+  lastModified      DateTime @updatedAt
+  userId            String
+  user              User     @relation("UserNotes", fields: [userId], references: [id], onDelete: Cascade)
+  sharedWith        String[] // Emails of users this note is shared with
+}
