@@ -26,18 +26,18 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const body = await request.json();
 
-    const existingNote = db.notes.findById(id);
+    const existingNote = await db.notes.findById(id);
     if (!existingNote) {
         return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
 
     // Check ownership or sharing permission (simplified: owner or shared can edit)
-    const user = db.users.findById(userId);
+    const user = await db.users.findById(userId);
     if (existingNote.userId !== userId && (!user || !existingNote.sharedWith?.includes(user.email))) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const updated = db.notes.update(id, { ...body, lastModified: Date.now() });
+    const updated = await db.notes.update(id, body);
     return NextResponse.json(updated);
 }
 
@@ -48,7 +48,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     }
 
     const { id } = await params;
-    const existingNote = db.notes.findById(id);
+    const existingNote = await db.notes.findById(id);
 
     if (!existingNote) {
         return NextResponse.json({ error: 'Note not found' }, { status: 404 });
@@ -58,6 +58,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    db.notes.delete(id);
+    await db.notes.delete(id);
     return NextResponse.json({ success: true });
 }

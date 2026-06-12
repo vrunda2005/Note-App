@@ -19,7 +19,7 @@ export async function GET() {
 
         try {
             const decoded = jwt.verify(token.value, JWT_SECRET) as { userId: string };
-            const user = db.users.findById(decoded.userId);
+            const user = await db.users.findById(decoded.userId);
 
             if (!user) {
                 return NextResponse.json(

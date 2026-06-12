@@ -23,7 +23,7 @@ export async function GET() {
     if (!userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const notes = db.notes.getByUserId(userId);
+    const notes = await db.notes.getByUserId(userId);
     return NextResponse.json(notes);
 }
 
@@ -38,10 +38,9 @@ export async function POST(request: Request) {
         ...body,
         id: uuidv4(),
         userId,
-        lastModified: Date.now(),
         sharedWith: []
     };
 
-    const created = db.notes.create(newNote);
+    const created = await db.notes.create(newNote);
     return NextResponse.json(created);
 }

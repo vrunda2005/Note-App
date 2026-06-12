@@ -40,7 +40,7 @@ export async function POST(request: Request) {
             );
         }
 
-        const existingUser = db.users.findByEmail(email);
+        const existingUser = await db.users.findByEmail(email);
         if (existingUser) {
             return NextResponse.json(
                 { error: 'User already exists' },
@@ -49,12 +49,11 @@ export async function POST(request: Request) {
         }
 
         const passwordHash = await bcrypt.hash(password, 10);
-        const newUser = db.users.create({
+        const newUser = await db.users.create({
             id: uuidv4(),
             email,
             passwordHash,
             name,
-            createdAt: new Date().toISOString(),
         });
 
         // Create JWT

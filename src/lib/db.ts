@@ -1,25 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import { prisma } from './prisma';
 import { Note } from '../types';
-
-const DATA_DIR = path.join(process.cwd(), 'data');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
-
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-// Ensure users file exists
-if (!fs.existsSync(USERS_FILE)) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify([]));
-}
-
-// Ensure notes file exists
-if (!fs.existsSync(NOTES_FILE)) {
-  fs.writeFileSync(NOTES_FILE, JSON.stringify([]));
-}
 
 export interface User {
   id: string;
@@ -29,74 +9,120 @@ export interface User {
   createdAt: string;
 }
 
+const mapPrismaNote = (note: any): Note => ({
+  id: note.id,
+  title: note.title,
+  content: note.content,
+  pinned: note.pinned,
+  tags: note.tags,
+  summary: note.summary,
+  passwordProtected: note.passwordProtected,
+  encryptedContent: note.encryptedContent ?? undefined,
+  lastModified: note.lastModified.getTime(),
+  userId: note.userId,
+  sharedWith: note.sharedWith,
+});
+
 export const db = {
   users: {
-    getAll: (): User[] => {
-      try {
-        const data = fs.readFileSync(USERS_FILE, 'utf-8');
-        return JSON.parse(data);
-      } catch (error) {
-        return [];
-      }
+    create: async (user: Omit<User, 'createdAt'>) => {
+      const created = await prisma.user.create({
+        data: {
+          id: user.id,
+          email: user.email,
+          passwordHash: user.passwordHash,
+          name: user.name,
+        }
+      });
+      return {
+        ...created,
+        createdAt: created.createdAt.toISOString()
+      };
     },
-    create: (user: User) => {
-      const users = db.users.getAll();
-      users.push(user);
-      fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-      return user;
+    findByEmail: async (email: string): Promise<User | undefined> => {
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+      if (!user) return undefined;
+      return {
+        ...user,
+        createdAt: user.createdAt.toISOString()
+      };
     },
-    findByEmail: (email: string): User | undefined => {
-      const users = db.users.getAll();
-      return users.find((u) => u.email === email);
-    },
-    findById: (id: string): User | undefined => {
-      const users = db.users.getAll();
-      return users.find((u) => u.id === id);
+    findById: async (id: string): Promise<User | undefined> => {
+      const user = await prisma.user.findUnique({
+        where: { id },
+      });
+      if (!user) return undefined;
+      return {
+        ...user,
+        createdAt: user.createdAt.toISOString()
+      };
     },
   },
   notes: {
-    getAll: (): Note[] => {
-      try {
-        const data = fs.readFileSync(NOTES_FILE, 'utf-8');
-        return JSON.parse(data);
-      } catch (error) {
-        return [];
-      }
-    },
-    getByUserId: (userId: string): Note[] => {
-      const notes = db.notes.getAll();
-      const user = db.users.findById(userId);
+    getByUserId: async (userId: string): Promise<Note[]> => {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) return [];
 
-      return notes.filter(n =>
-        n.userId === userId ||
-        (n.sharedWith && n.sharedWith.includes(user.email))
-      );
+      const notes = await prisma.note.findMany({
+        where: {
+          OR: [
+            { userId: userId },
+            { sharedWith: { has: user.email } }
+          ]
+        },
+        orderBy: {
+          lastModified: 'desc'
+        }
+      });
+      return notes.map(mapPrismaNote);
     },
-    create: (note: Note) => {
-      const notes = db.notes.getAll();
-      notes.push(note);
-      fs.writeFileSync(NOTES_FILE, JSON.stringify(notes, null, 2));
-      return note;
+    create: async (note: Omit<Note, 'lastModified'>): Promise<Note> => {
+      const created = await prisma.note.create({
+        data: {
+          id: note.id,
+          title: note.title,
+          content: note.content,
+          pinned: note.pinned,
+          tags: note.tags,
+          summary: note.summary,
+          passwordProtected: note.passwordProtected,
+          encryptedContent: note.encryptedContent,
+          userId: note.userId,
+          sharedWith: note.sharedWith,
+        }
+      });
+      return mapPrismaNote(created);
     },
-    update: (id: string, updates: Partial<Note>) => {
-      const notes = db.notes.getAll();
-      const index = notes.findIndex(n => n.id === id);
-      if (index === -1) return null;
+    update: async (id: string, updates: Partial<Note>): Promise<Note | null> => {
+      const data: any = {};
+      if (updates.title !== undefined) data.title = updates.title;
+      if (updates.content !== undefined) data.content = updates.content;
+      if (updates.pinned !== undefined) data.pinned = updates.pinned;
+      if (updates.tags !== undefined) data.tags = updates.tags;
+      if (updates.summary !== undefined) data.summary = updates.summary;
+      if (updates.passwordProtected !== undefined) data.passwordProtected = updates.passwordProtected;
+      if (updates.encryptedContent !== undefined) data.encryptedContent = updates.encryptedContent;
+      if (updates.sharedWith !== undefined) data.sharedWith = updates.sharedWith;
 
-      const updatedNote = { ...notes[index], ...updates };
-      notes[index] = updatedNote;
-      fs.writeFileSync(NOTES_FILE, JSON.stringify(notes, null, 2));
-      return updatedNote;
+      const updated = await prisma.note.update({
+        where: { id },
+        data,
+      });
+      return mapPrismaNote(updated);
     },
-    delete: (id: string) => {
-      const notes = db.notes.getAll();
-      const filtered = notes.filter(n => n.id !== id);
-      fs.writeFileSync(NOTES_FILE, JSON.stringify(filtered, null, 2));
+    delete: async (id: string): Promise<void> => {
+      await prisma.note.delete({
+        where: { id },
+      });
     },
-    findById: (id: string): Note | undefined => {
-      const notes = db.notes.getAll();
-      return notes.find(n => n.id === id);
+    findById: async (id: string): Promise<Note | undefined> => {
+      const note = await prisma.note.findUnique({
+        where: { id },
+      });
+      if (!note) return undefined;
+      return mapPrismaNote(note);
     }
   }
 };

@@ -30,7 +30,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'Email required' }, { status: 400 });
     }
 
-    const existingNote = db.notes.findById(id);
+    const existingNote = await db.notes.findById(id);
     if (!existingNote) {
         return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
@@ -42,7 +42,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const sharedWith = existingNote.sharedWith || [];
     if (!sharedWith.includes(email)) {
         sharedWith.push(email);
-        db.notes.update(id, { sharedWith });
+        await db.notes.update(id, { sharedWith });
     }
 
     return NextResponse.json({ success: true, sharedWith });
