@@ -22,7 +22,7 @@ export default function EditableContent({ html, onInput, readOnly = false, conte
             ref={ref as any}
             contentEditable={!readOnly}
             onInput={onInput}
-            className={`min-h-[400px] p-8 focus:outline-none focus:ring-2 focus:ring-blue-400/20 focus:ring-inset ${readOnly ? 'bg-slate-50/80 text-slate-600' : 'bg-white'} prose prose-slate max-w-none prose-headings:text-slate-800 prose-p:text-slate-700 prose-strong:text-slate-800 prose-em:text-slate-700`}
+            className={`min-h-[400px] p-8 focus:outline-none focus:ring-2 focus:ring-blue-400/20 focus:ring-inset ${readOnly ? 'bg-slate-50/80 text-slate-600' : 'bg-white text-slate-800'} prose prose-slate max-w-none prose-headings:text-slate-800 prose-p:text-slate-700 prose-strong:text-slate-800 prose-em:text-slate-700`}
             suppressContentEditableWarning
             spellCheck
             style={{ caretColor: '#3b82f6' }}

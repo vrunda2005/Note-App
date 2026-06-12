@@ -150,7 +150,7 @@ export default function NoteEditor({
                             if (e.key === 'Enter') addTag();
                         }}
                         placeholder="Add a new tag to organize your note..."
-                        className="flex-1 px-4 py-3 bg-white/80 border border-slate-200/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition-all duration-200 backdrop-blur-sm placeholder-slate-400"
+                        className="flex-1 px-4 py-3 text-slate-800 bg-white rounded-xl border border-slate-200/60 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition-all duration-200 backdrop-blur-sm placeholder-slate-400"
                     />
                     <button
                         onClick={addTag}

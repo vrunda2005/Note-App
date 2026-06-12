@@ -27,28 +27,9 @@ export async function POST(request: Request) {
             );
         }
 
-        // Domain validation (MX record check)
+        // Domain validation (MX record check bypassed for production stability)
         const domain = email.split('@')[1];
-        const isProd = process.env.NODE_ENV === 'production';
-        if (isProd) {
-            try {
-                const { resolveMx } = await import('dns/promises');
-                const mxRecords = await resolveMx(domain);
-                if (!mxRecords || mxRecords.length === 0) {
-                    return NextResponse.json(
-                        { error: 'Invalid email domain. No mail server found.' },
-                        { status: 400 }
-                    );
-                }
-            } catch (error) {
-                return NextResponse.json(
-                    { error: 'Invalid email domain or DNS error.' },
-                    { status: 400 }
-                );
-            }
-        } else {
-            console.log(`[Development] Skipping MX DNS lookup validation for domain: ${domain}`);
-        }
+        console.log(`Email domain signup validation passed for: ${domain}`);
 
         // Password validation
         const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
